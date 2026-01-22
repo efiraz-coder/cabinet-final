@@ -4,10 +4,10 @@ import json
 import re
 import random
 
-# הגדרת דף - layout רחב למניעת צפיפות
+# הגדרת דף
 st.set_page_config(page_title="קבינט המוחות של אפי", layout="wide")
 
-# --- CSS: עיצוב נקי, מרווח ומונע חפיפות ---
+# --- CSS: עיצוב נקי למניעת חפיפות ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&display=swap');
@@ -22,7 +22,6 @@ st.markdown("""
         line-height: 2.2 !important; 
     }
 
-    /* עיצוב תיבות הטקסט */
     textarea {
         background-color: #e8f5e9 !important; 
         border: 2px solid #2e7d32 !important;
@@ -30,7 +29,6 @@ st.markdown("""
         padding: 15px !important;
     }
 
-    /* עיצוב הכפתורים */
     div.stButton > button {
         background-color: #bbdefb !important; 
         color: #000000 !important;
@@ -41,18 +39,17 @@ st.markdown("""
         width: 100% !important;
     }
 
-    /* עיצוב כרטיסיית שאלה של מומחה */
-    .expert-box {
+    .expert-question {
         background-color: #ffffff;
-        padding: 20px;
-        border-right: 6px solid #1976d2;
-        border-radius: 10px;
-        margin-bottom: 25px;
+        padding: 15px;
+        border-right: 5px solid #1976d2;
+        border-radius: 8px;
+        margin-top: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- ניהול הזיכרון והדמויות ---
+# --- ניהול הדמויות ---
 if 'current_cabinet' not in st.session_state:
     pool_std = [
         {"שם": "פיטר דרוקר", "תואר": "אבי הניהול", "התמחות": "אסטרטגיה וארגון"},
@@ -67,7 +64,6 @@ if 'current_cabinet' not in st.session_state:
         {"שם": "מרקוס אורליוס", "תואר": "קיסר רומי", "התמחות": "חוסן וסטואיציזם"},
         {"שם": "לאונרדו דה וינצ'י", "תואר": "גאון", "התמחות": "יצירתיות רב-תחומית"}
     ]
-    # הגרלה ראשונית: 3 מהקבועים ו-3 מההפתעה
     st.session_state.current_cabinet = random.sample(pool_std, 3) + random.sample(pool_surp, 3)
 
 def call_api(prompt):
@@ -80,31 +76,49 @@ def call_api(prompt):
     except:
         return None
 
-# --- ממשק המשתמש ---
+# --- ממשק ---
 st.title("🏛️ קבינט המוחות של אפי")
 
-st.subheader("👥 חברי הקבינט שמתכנסים עבורך:")
-# הצגת המומחים בצורה אופקית ונקייה
+st.subheader("👥 המומחים שמתכנסים עבורך:")
 cols = st.columns(3)
 for i, m in enumerate(st.session_state.current_cabinet):
     with cols[i % 3]:
         st.info(f"👤 **{m['שם']}**\n\n{m['תואר']}")
 
 st.markdown("---")
-idea = st.text_area("🖋️ תאר את האתגר או הבעיה שלך:", height=100)
+idea = st.text_area("🖋️ תאר את האתגר שלך:", height=100)
 
 if st.button("🔍 התחל סבב שאלות אישיות"):
     if idea:
-        with st.spinner("חברי הקבינט מנתחים את דבריך ומנסחים שאלות..."):
+        with st.spinner("חברי הקבינט מנסחים שאלות..."):
             experts_list = [f"{m['שם']} ({m['התמחות']})" for m in st.session_state.current_cabinet]
             prompt = f"""נושא: {idea}. מומחים: {experts_list}.
-            נסח 6 שאלות (אחת לכל מומחה). כל שאלה חייבת לשקף את הזווית הייחודית של המומחה.
+            נסח 6 שאלות (אחת לכל מומחה). כל שאלה חייבת לשקף את הזווית של המומחה.
             החזר JSON בלבד: [{{'expert': 'שם המומחה', 'q': 'שאלה', 'options': ['א','ב','ג']}}, ...]"""
             
             raw = call_api(prompt)
             match = re.search(r'\[.*\]', raw, re.DOTALL) if raw else None
             if match:
                 st.session_state.qs = json.loads(match.group())
-                st.session_state.pop('res', None) # איפוס תוצאות קודמות
+                if 'res' in st.session_state: del st.session_state['res']
             else:
-                st.error("הקבינט זקוק לניסוח מ
+                st.error("הקבינט זקוק לניסוח מחדש. אנא נסה שוב.")
+
+if 'qs' in st.session_state and st.session_state.qs:
+    st.subheader("📝 סבב שאלות האבחון")
+    ans_data = []
+    
+    for i, item in enumerate(st.session_state.qs):
+        st.markdown(f"**💬 {item['expert']} שואל/ת:**")
+        choice = st.radio(item['q'], item['options'], key=f"q_{i}")
+        ans_data.append(f"מומחה: {item['expert']} | שאלה: {item['q']} | תשובה: {choice}")
+
+    if st.button("🚀 הפק תובנות אסטרטגיות"):
+        with st.spinner("מגבש המלצות..."):
+            p_final = f"נושא: {idea}. תשובות: {ans_data}. כתוב 5 תובנות וטבלה מסכמת."
+            st.session_state.res = call_api(p_final)
+
+if 'res' in st.session_state:
+    st.markdown("---")
+    st.markdown("### 📊 מסקנות הקבינט של אפי")
+    st.write(st.session_state.res)
