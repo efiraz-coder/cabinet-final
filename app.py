@@ -5,33 +5,12 @@ import pandas as pd
 # הגדרת דף רחב
 st.set_page_config(page_title="קבינט המוחות של אפי", layout="wide")
 
-# --- הזרקת CSS לתיקון RTL מלא (כולל טבלאות) ---
+# --- הזרקת CSS לתיקון RTL מלא ועיצוב אסתטי ---
 st.markdown("""
     <style>
-    /* הגדרת כיוון כללי למסך */
-    .main, .block-container {
-        direction: rtl;
-        text-align: right;
-    }
-    
-    /* יישור טבלאות (Data Editor) */
-    [data-testid="stDataEditor"] {
-        direction: rtl;
-        text-align: right;
-    }
-    
-    /* יישור כותרות עמודה בטבלה */
-    .st-ae {
-        text-align: right !important;
-    }
-
-    /* יישור תיבות טקסט וקלט */
-    input, textarea {
-        direction: rtl !important;
-        text-align: right !important;
-    }
-
-    /* עיצוב תיבת הסיפור המסכם */
+    .main, .block-container { direction: rtl; text-align: right; }
+    [data-testid="stDataEditor"] { direction: rtl; text-align: right; }
+    input, textarea { direction: rtl !important; text-align: right !important; }
     .story-box {
         border-right: 6px solid #1abc9c;
         padding: 25px;
@@ -39,10 +18,7 @@ st.markdown("""
         border-radius: 15px 0 0 15px;
         line-height: 1.8;
         margin-bottom: 25px;
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.05);
     }
-
-    /* עיצוב כפתורים */
     div.stButton > button {
         width: 100%;
         border-radius: 10px;
@@ -50,39 +26,39 @@ st.markdown("""
         background-color: #2c3e50;
         color: white;
         font-weight: bold;
-        border: none;
-    }
-    
-    /* תיקון יישור לצ'קבוקסים */
-    .stCheckbox {
-        direction: rtl;
-        display: flex;
-        flex-direction: row-reverse;
-        justify-content: flex-end;
     }
     </style>
     """, unsafe_allow_html=True)
 
 # משיכת מפתח
-API_KEY = st.secrets["GEMINI_KEY"]
+try:
+    API_KEY = st.secrets["GEMINI_KEY"]
+except:
+    st.error("המפתח (GEMINI_KEY) חסר ב-Secrets של Streamlit!")
+    st.stop()
+
 API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={API_KEY}"
 
 def call_gemini(prompt):
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
-    res = requests.post(API_URL, json=payload)
-    return res.json()['candidates'][0]['content']['parts'][0]['text'] if res.status_code == 200 else "תקלה בחיבור"
+    try:
+        res = requests.post(API_URL, json=payload)
+        if res.status_code == 200:
+            return res.json()['candidates'][0]['content']['parts'][0]['text']
+        return f"שגיאת שרת: {res.status_code}"
+    except Exception as e:
+        return f"תקלה בחיבור: {str(e)}"
 
 # --- ניהול משתתפים ---
 if 'participants_df' not in st.session_state:
-    st.session_state['participants_df'] = pd.DataFrame({
-        "שם": ["חנה ארנדט", "לודוויג ויטגנשטיין", "פיטר דרוקר", "ד"ר אדוארד האלוול", "זיגמונד פרויד", "ז'אן פיאז'ה", "אלברט בנדורה", "ג'ק וולש", "ריד הופמן"],
-        "סיווג": ["פילוסופיה", "שפה", "ניהול", "קוגניציה", "פסיכולוגיה", "התפתחות", "חברה", "עסקים", "נטוורקינג"]
-    })
+    names = ["חנה ארנדט", "לודוויג ויטגנשטיין", "פיטר דרוקר", "ד"ר אדוארד האלוול", "זיגמונד פרויד", "ז'אן פיאז'ה", "אלברט בנדורה", "ג'ק וולש", "ריד הופמן"]
+    roles = ["פילוסופיה", "שפה", "ניהול", "קוגניציה", "פסיכולוגיה", "התפתחות", "חברה", "עסקים", "נטוורקינג"]
+    st.session_state['participants_df'] = pd.DataFrame({"שם": names, "סיווג": roles})
 
 st.title("🏛️ קבינט המוחות של אפי")
 
 # --- עריכת הרכב ---
-with st.expander("👤 עריכת הרכב הקבינט - ניהול בטבלה"):
+with st.expander("👤 עריכת הרכב הקבינט"):
     st.session_state['participants_df'] = st.data_editor(
         st.session_state['participants_df'], 
         num_rows="dynamic", 
@@ -98,27 +74,27 @@ if st.button("❓ שאלות מנחות"):
         members = ", ".join(st.session_state['participants_df']["שם"].tolist())
         prompt = f"הנושא: {idea}. חברי הקבינט: {members}. נסח 4 שאלות אבחון קצרות לאפי על יכולותיו ומגבלותיו."
         with st.spinner("הקבינט מנסח שאלות..."):
-            st.session_state['questions'] = call_gemini(prompt).split('\n')
+            res_text = call_gemini(prompt)
+            st.session_state['questions'] = res_text.split('\n')
 
-# הצגת שאלות ומענה
 if 'questions' in st.session_state:
     st.info("נא לענות כדי לדייק את הניתוח:")
-    user_answers = ""
+    ans_list = []
     for i, q in enumerate(st.session_state['questions']):
         if q.strip():
-            ans = st.text_input(f"{q}", key=f"ans_{i}")
-            user_answers += f"שאלה: {q} תשובה: {ans}\n"
+            a = st.text_input(f"{q}", key=f"ans_{i}")
+            ans_list.append(f"ש: {q} ת: {a}")
 
     # --- שלב ב: הדיון המסכם ---
     st.markdown("---")
     if st.button("🎭 הצג דיון סכם ומסר אסטרטגי"):
         members = ", ".join(st.session_state['participants_df']["שם"].tolist())
+        user_context = "\n".join(ans_list)
         summary_prompt = f"""
-        הנושא: {idea}. תשובות אפי: {user_answers}. משתתפים: {members}.
-        צור דיון מסכם במסר סיפורי-לוגי עמוק. צטט דמויות מהקבינט.
-        בסוף, הצג 2 כיווני פעולה הכוללים אבני דרך, תשומות ותפוקות.
-        הוראה קריטית: הצג את כיווני הפעולה בטבלאות מעוצבות.
-        יישר הכל לימין.
+        הנושא: {idea}. תשובות אפי: {user_context}. משתתפים: {members}.
+        צור דיון מסכם במסר סיפורי-לוגי עמוק וידידותי המבוסס על חברי הקבינט. 
+        לאחר מכן, הצע 2 כיווני פעולה עם אבני דרך, תשומות ותפוקות בטבלאות ברורות.
+        הכל בעברית רהוטה ומיושר לימין.
         """
         with st.spinner("הקבינט בסיכום סופי..."):
             st.session_state['final_story'] = call_gemini(summary_prompt)
