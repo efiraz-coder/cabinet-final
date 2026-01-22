@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 import pandas as pd
 
-# הגדרת דף רחב
+# הגדרת דף
 st.set_page_config(page_title="קבינט המוחות של אפי", layout="wide")
 
 # --- הזרקת CSS לתיקון RTL מלא ועיצוב אסתטי ---
@@ -18,6 +18,7 @@ st.markdown("""
         border-radius: 15px 0 0 15px;
         line-height: 1.8;
         margin-bottom: 25px;
+        direction: rtl;
     }
     div.stButton > button {
         width: 100%;
@@ -34,7 +35,7 @@ st.markdown("""
 try:
     API_KEY = st.secrets["GEMINI_KEY"]
 except:
-    st.error("המפתח (GEMINI_KEY) חסר ב-Secrets של Streamlit!")
+    st.error("המפתח (GEMINI_KEY) חסר ב-Secrets!")
     st.stop()
 
 API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={API_KEY}"
@@ -49,16 +50,37 @@ def call_gemini(prompt):
     except Exception as e:
         return f"תקלה בחיבור: {str(e)}"
 
-# --- ניהול משתתפים ---
+# --- ניהול משתתפים - מבנה חסין שגיאות ---
 if 'participants_df' not in st.session_state:
-    names = ["חנה ארנדט", "לודוויג ויטגנשטיין", "פיטר דרוקר", "ד"ר אדוארד האלוול", "זיגמונד פרויד", "ז'אן פיאז'ה", "אלברט בנדורה", "ג'ק וולש", "ריד הופמן"]
-    roles = ["פילוסופיה", "שפה", "ניהול", "קוגניציה", "פסיכולוגיה", "התפתחות", "חברה", "עסקים", "נטוורקינג"]
+    # שימוש ברשימה פשוטה כדי למנוע בעיות Syntax
+    names = [
+        "חנה ארנדט", 
+        "לודוויג ויטגנשטיין", 
+        "פיטר דרוקר", 
+        "אדוארד האלוול", 
+        "זיגמונד פרויד", 
+        "זאן פיאזה", 
+        "אלברט בנדורה", 
+        "גק וולש", 
+        "ריד הופמן"
+    ]
+    roles = [
+        "פילוסופיה פוליטית", 
+        "פילוסופיה של השפה", 
+        "ניהול ואסטרטגיה", 
+        "קוגניציה ו-ADHD", 
+        "פסיכואנליזה", 
+        "פסיכולוגיה התפתחותית", 
+        "למידה חברתית", 
+        "מנהיגות עסקית", 
+        "יזמות וקשרים"
+    ]
     st.session_state['participants_df'] = pd.DataFrame({"שם": names, "סיווג": roles})
 
 st.title("🏛️ קבינט המוחות של אפי")
 
 # --- עריכת הרכב ---
-with st.expander("👤 עריכת הרכב הקבינט"):
+with st.expander("👤 ניהול חברי הקבינט"):
     st.session_state['participants_df'] = st.data_editor(
         st.session_state['participants_df'], 
         num_rows="dynamic", 
@@ -72,7 +94,7 @@ idea = st.text_area("מה הנושא שעל הפרק?", height=80)
 if st.button("❓ שאלות מנחות"):
     if idea:
         members = ", ".join(st.session_state['participants_df']["שם"].tolist())
-        prompt = f"הנושא: {idea}. חברי הקבינט: {members}. נסח 4 שאלות אבחון קצרות לאפי על יכולותיו ומגבלותיו."
+        prompt = f"הנושא: {idea}. חברי הקבינט: {members}. נסח 4 שאלות אבחון קצרות לאפי על יכולותיו ומגבלותיו. ענה בעברית."
         with st.spinner("הקבינט מנסח שאלות..."):
             res_text = call_gemini(prompt)
             st.session_state['questions'] = res_text.split('\n')
@@ -81,9 +103,10 @@ if 'questions' in st.session_state:
     st.info("נא לענות כדי לדייק את הניתוח:")
     ans_list = []
     for i, q in enumerate(st.session_state['questions']):
-        if q.strip():
-            a = st.text_input(f"{q}", key=f"ans_{i}")
-            ans_list.append(f"ש: {q} ת: {a}")
+        q_clean = q.strip()
+        if q_clean and len(q_clean) > 5:
+            a = st.text_input(f"{q_clean}", key=f"ans_{i}")
+            ans_list.append(f"שאלה: {q_clean} | תשובה: {a}")
 
     # --- שלב ב: הדיון המסכם ---
     st.markdown("---")
@@ -92,8 +115,8 @@ if 'questions' in st.session_state:
         user_context = "\n".join(ans_list)
         summary_prompt = f"""
         הנושא: {idea}. תשובות אפי: {user_context}. משתתפים: {members}.
-        צור דיון מסכם במסר סיפורי-לוגי עמוק וידידותי המבוסס על חברי הקבינט. 
-        לאחר מכן, הצע 2 כיווני פעולה עם אבני דרך, תשומות ותפוקות בטבלאות ברורות.
+        צור דיון מסכם במסר סיפורי-לוגי עמוק המבוסס על חברי הקבינט. 
+        לאחר הדיון, הצע 2 כיווני פעולה הכוללים אבני דרך, תשומות ותפוקות בטבלאות.
         הכל בעברית רהוטה ומיושר לימין.
         """
         with st.spinner("הקבינט בסיכום סופי..."):
