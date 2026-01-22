@@ -4,10 +4,11 @@ import json
 
 st.set_page_config(page_title="קבינט העלית של אפי", layout="wide")
 
-# המפתח שלך
-API_KEY = "AIzaSyB12avvwGP6ECzfzTFOLDdfJHW37EQJvVo"
-# שימוש ב-Gemini Pro בנתיב v1beta - השילוב הכי פחות "רגיש" לשגיאות
-API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={API_KEY}"
+# המפתח החדש שייצרת
+NEW_API_KEY = "AIzaSyDHmleHY-2_yfvsXqxxw_WQnXo-vCf9OfY" 
+
+# שימוש במודל Gemini 1.5 Flash בגרסה העדכנית
+API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={NEW_API_KEY}"
 
 # --- אבטחה ---
 if 'auth' not in st.session_state:
@@ -22,31 +23,30 @@ if not st.session_state['auth']:
             st.rerun()
     st.stop()
 
-# --- ממשק ---
+# --- ממשק האפליקציה ---
 st.title("🏛️ קבינט המוחות: נבחרת העלית")
-st.markdown("### המודל: Gemini Pro | ויטגנשטיין, ארנדט, פיאז'ה, בנדורה, דרוקר והאלוול")
+st.markdown("### פילוסופיה | פסיכולוגיה | ניהול | ADHD")
 
-idea = st.text_area("הזן את סוגיית הליבה לדיון (למשל: שוק הלידים בארה\"ב):", height=150)
+idea = st.text_area("הזן את סוגיית הליבה לדיון:", height=150)
 
 if st.button("🚀 הפעל סימולציית קבינט"):
     if idea:
-        with st.spinner("הקבינט מתכנס (Gemini Pro)..."):
+        with st.spinner("המפתח החדש עובד! הקבינט מתכנס לדיון..."):
             prompt_text = f"""
-            נתח עבור אפי את הסוגיה הבאה: "{idea}"
+            נתח עבור אפי את הסוגיה: "{idea}"
             
-            הקבינט כולל את:
-            1. פילוסופים: לודוויג ויטגנשטיין וחנה ארנדט.
-            2. פסיכולוגים: זיגמונד פרויד, ז'אן פיאז'ה ואלברט בנדורה.
-            3. מומחי ניהול: פיטר דרוקר, ג'ק וולש וריד הופמן.
-            4. רפואה: ד"ר אדוארד האלוול (מומחה ADHD).
-            5. אורח בהפתעה: דמות אקראית ומפתיעה מתחום שונה לגמרי.
+            המשתתפים בקבינט:
+            1. לודוויג ויטגנשטיין וחנה ארנדט (פילוסופיה).
+            2. זיגמונד פרויד, ז'אן פיאז'ה ואלברט בנדורה (פסיכולוגיה).
+            3. פיטר דרוקר, ג'ק וולש וריד הופמן (ניהול).
+            4. ד"ר אדוארד האלוול (מומחה ADHD).
+            5. אורח בהפתעה: דמות אקראית ומפתיעה מתחום שונה שמתפרצת לדיון.
 
             הנחיות:
-            - נהל ויכוח סוער בין המשתתפים. כל אחד תוקף את הנושא מהזווית שלו.
-            - ויטגנשטיין ינתח את המילים שמשמשות למכירת הליד.
-            - ד"ר האלוול ינתח את מצב הקשב של עורכי הדין (הלקוחות).
-            - הסק 4 מסקנות מעשיות לאפי.
-            כתוב בעברית מקצועית.
+            - נהל ויכוח סוער ומרתק בין הדמויות.
+            - כל דמות צריכה לתרום מהזווית הייחודית שלה לסוגיה.
+            - בסוף, הסק 4 מסקנות מעשיות ואסטרטגיות לאפי.
+            כתוב בעברית מקצועית ורהוטה.
             """
             
             payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
@@ -60,10 +60,10 @@ if st.button("🚀 הפעל סימולציית קבינט"):
                     text = response_data['candidates'][0]['content']['parts'][0]['text']
                     st.markdown(text)
                 else:
-                    st.error(f"שגיאת שרת ({response.status_code})")
+                    st.error(f"שגיאה: {response.status_code}")
                     st.json(response_data)
             except Exception as e:
                 st.error(f"תקלה בחיבור: {str(e)}")
 
 st.divider()
-st.caption("קבינט המוחות | Powered by Gemini Pro | 2026")
+st.caption("מערכת הקבינט | מחובר ב-API החדש | 2026")
