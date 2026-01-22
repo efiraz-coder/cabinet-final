@@ -4,10 +4,10 @@ import pandas as pd
 import json
 import re
 
-# הגדרת דף נקייה
+# הגדרת דף נקייה ופשוטה
 st.set_page_config(page_title="קבינט המוחות של אפי", layout="wide")
 
-# --- CSS "ברזל" לניגודיות מקסימלית ומניעת דריסת אותיות ---
+# CSS "ברזל" לפתרון כל בעיות העריכה
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&display=swap');
@@ -20,43 +20,51 @@ st.markdown("""
         direction: rtl !important;
         text-align: right !important;
         color: #000000 !important;
-        line-height: 2.0 !important; /* ריווח כפול למניעת הצטופפות */
+        line-height: 2.2 !important; /* ריווח ענק למניעת דריסת אותיות */
     }
 
-    /* הגדלת פונטים משמעותית */
-    p, li, label, span { font-size: 1.3rem !important; }
-    h1 { font-size: 2.8rem !important; border-bottom: 3px solid #000; padding-bottom: 10px; }
-    h3 { font-size: 1.8rem !important; color: #1e3a8a !important; }
+    /* הגדלת פונטים דרמטית */
+    p, li, label, span, input { font-size: 1.4rem !important; font-weight: 500 !important; }
+    h1 { font-size: 3rem !important; color: #000000 !important; margin-bottom: 40px !important; }
+    h3 { font-size: 2rem !important; color: #1e3a8a !important; margin-top: 30px !important; }
 
-    /* תיקון שדות קלט - שחור על לבן בלבד */
-    input, textarea, [data-baseweb="radio"] {
-        background-color: #FFFFFF !important;
+    /* תיקון כותרות שמתערבבות */
+    .stExpander, .stMarkdown { margin-bottom: 25px !important; padding: 10px 0 !important; }
+
+    /* עיצוב שדות קלט - נקי וברור */
+    textarea, [data-baseweb="radio"] {
+        background-color: #F9FAFB !important;
         color: #000000 !important;
         border: 2px solid #000000 !important;
+        padding: 15px !important;
     }
 
-    /* כרטיסיות עבודה נקיות */
-    .work-card {
-        border: 2px solid #EEEEEE;
-        padding: 40px;
-        margin-bottom: 30px;
-        border-radius: 0px; /* מראה של מסמך רשמי */
-    }
-
-    /* טבלה נקייה */
-    table { width: 100%; border: 2px solid #000; margin-top: 20px; }
+    /* טבלה פשוטה שחור-לבן */
+    table { width: 100%; border: 2px solid #000; margin-top: 20px; background-color: white; }
     th, td { border: 1px solid #000; padding: 15px; text-align: right; color: #000 !important; }
-    th { background-color: #F0F0F0 !important; }
+    th { background-color: #F0F0F0 !important; font-weight: bold; }
+
+    /* כפתור בולט מאוד */
+    div.stButton > button {
+        background-color: #000000 !important;
+        color: #FFFFFF !important;
+        height: 4em;
+        width: 100%;
+        font-size: 1.3rem !important;
+        font-weight: bold;
+        border-radius: 0px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- פונקציות ליבה ---
+# פונקציות חיבור
 def call_gemini(prompt):
-    API_KEY = st.secrets["GEMINI_KEY"]
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={API_KEY}"
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
-    res = requests.post(url, json=payload)
-    return res.json()['candidates'][0]['content']['parts'][0]['text'] if res.status_code == 200 else ""
+    try:
+        API_KEY = st.secrets["GEMINI_KEY"]
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={API_KEY}"
+        res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]})
+        return res.json()['candidates'][0]['content']['parts'][0]['text']
+    except: return "שגיאה בחיבור לקבינט."
 
 def extract_json(text):
     try:
@@ -64,59 +72,54 @@ def extract_json(text):
         return json.loads(match.group()) if match else None
     except: return None
 
-# --- ניהול קבינט ---
-if 'participants_df' not in st.session_state:
-    st.session_state['participants_df'] = pd.DataFrame({
-        "שם": ["חנה ארנדט", "לודוויג ויטגנשטיין", "פיטר דרוקר", "אדוארד האלוול", "זיגמונד פרויד"],
-        "תפקיד": ["פילוסופיה", "לוגיקה", "אסטרטגיה", "קוגניציה", "פסיכולוגיה"]
-    })
-
+# --- ממשק ---
 st.title("🏛️ קבינט המוחות של אפי")
 
-# תצוגת קבינט פשוטה
-with st.expander("👤 חברי הקבינט הפעילים"):
-    st.session_state['participants_df'] = st.data_editor(st.session_state['participants_df'], use_container_width=True)
+# שלב 1: נושא
+st.subheader("🖋️ מה האתגר שלך היום?")
+idea = st.text_area("תאר את המצב במילים פשוטות:", height=120)
 
-# שלב 1
-st.markdown('<div class="work-card">', unsafe_allow_html=True)
-st.subheader("🖋️ מה האתגר שלך?")
-idea = st.text_area("", height=100, placeholder="תאר את הבעיה כאן...")
-
-if st.button("🔍 נתח סוגיה"):
+if st.button("🔍 נתח ובנה שאלון אבחון"):
     if idea:
-        prompt = f"נושא: {idea}. נסח 4 שאלות אבחון פשוטות מאוד. החזר JSON בלבד: [{{'q': 'שאלה', 'options': ['תשובה 1', 'תשובה 2', 'תשובה 3']}}, ...]"
-        raw = call_gemini(prompt)
-        qs = extract_json(raw)
-        if qs: st.session_state['structured_questions'] = qs
-st.markdown('</div>', unsafe_allow_html=True)
+        prompt = f"נושא: {idea}. נסח 4 שאלות אבחון בשפה פשוטה ויומיומית ללא מושגים מקצועיים. החזר JSON בלבד: [{{'q': 'שאלה', 'options': ['א', 'ב', 'ג']}}, ...]"
+        with st.spinner("מכין שאלון פשוט..."):
+            raw = call_gemini(prompt)
+            qs = extract_json(raw)
+            if qs: st.session_state['qs'] = qs
 
-# שלב 2
-if 'structured_questions' in st.session_state:
-    st.markdown('<div class="work-card">', unsafe_allow_html=True)
-    st.subheader("📝 שאלון דיוק אסטרטגי")
-    user_answers = []
-    for i, item in enumerate(st.session_state['structured_questions']):
-        st.markdown(f"**{item['q']}**")
-        choice = st.radio(f"שאלה {i}", item['options'] + ["אחר"], key=f"r_{i}", label_visibility="collapsed")
-        ans = choice
-        if choice == "אחר": ans = st.text_input(f"פרט (שאלה {i+1}):", key=f"t_{i}")
-        user_answers.append(f"ש: {item['q']} | ת: {ans}")
+# שלב 2: שאלון
+if 'qs' in st.session_state:
+    st.markdown("---")
+    st.subheader("📝 בוא נבין את הפרטים")
+    ans_list = []
+    for i, item in enumerate(st.session_state['qs']):
+        st.markdown(f"**{i+1}. {item['q']}**")
+        choice = st.radio(f"בחירה {i}", item['options'] + ["אחר"], key=f"radio_{i}", label_visibility="collapsed")
+        final = choice
+        if choice == "אחר": final = st.text_input(f"פרט כאן (שאלה {i+1}):", key=f"text_{i}")
+        ans_list.append(f"ש: {item['q']} | ת: {final}")
 
-    if st.button("🚀 הפק ניתוח קבינט"):
-        members = ", ".join(st.session_state['participants_df']["שם"].tolist())
-        summary_prompt = f"""
-        נושא: {idea}. תשובות: {user_answers}. קבינט: {members}.
+    if st.button("🚀 הפק 5 תובנות אסטרטגיות"):
+        p_names = ["חנה ארנדט", "פיטר דרוקר", "זיגמונד פרויד", "גק וולש"]
+        prompt = f"""
+        נושא: {idea}. תשובות: {ans_list}. קבינט: {p_names}.
         משימה:
-        1. ציין 5 נקודות תובנה עיקריות. השתמש בשפה מקצועית מעמיקה אך ברורה ופשוטה.
-        2. לאחר מכן, הצג טבלה: | בעיה | פתרון | דרך | תפוקות | תשומות |
-        הכל בשחור על לבן, יישור לימין, ללא הצטופפות אותיות.
+        1. ציין 5 נקודות תובנה אסטרטגיות עיקריות. 
+        2. השתמש בשפה מקצועית מעמיקה אך מובנת לכל אדם.
+        3. הצג טבלה מסודרת: | בעיה | פתרון | דרך | תפוקות | תשומות |
+        שחור על לבן, אותיות גדולות, ללא דריסת שורות.
         """
-        st.session_state['final_result'] = call_gemini(summary_prompt)
-    st.markdown('</div>', unsafe_allow_html=True)
+        with st.spinner("הקבינט מגבש החלטות..."):
+            st.session_state['result'] = call_gemini(prompt)
 
-# שלב 3 - התוצאה הסופית
-if 'final_result' in st.session_state:
-    st.markdown('<div class="work-card">', unsafe_allow_html=True)
-    st.subheader("📊 סיכום אסטרטגי - 5 תובנות")
-    st.markdown(st.session_state['final_result'].replace('\n', '<br>'), unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+# שלב 3: תוצאה
+if 'result' in st.session_state:
+    st.markdown("---")
+    st.subheader("📊 המלצות הקבינט - 5 נקודות עיקריות")
+    # הצגת התוצאה עם ריווח שורות כפול
+    st.markdown(st.session_state['result'].replace('\n', '<br><br>'), unsafe_allow_html=True)
+    
+    if st.button("🧹 התחל דיון חדש"):
+        for k in ['qs', 'result']: 
+            if k in st.session_state: del st.session_state[k]
+        st.rerun()
