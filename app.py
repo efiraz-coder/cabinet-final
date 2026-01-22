@@ -4,13 +4,12 @@ import json
 
 st.set_page_config(page_title="קבינט העלית של אפי", layout="wide")
 
-# המפתח שלך - העתקתי אותו בדיוק מההודעה האחרונה שלך
-API_KEY = "AIzaSyCoonPoQvGp0AfZ_M5LKlBJEfQV9pI1TJw" 
+# הדבק כאן את המפתח החדש שייצרת הרגע
+API_KEY = "AIzaSyAxt5rZVuevd2Drx9-uGKUCLfhPzFkGAEg" 
 
-# הכתובת המעודכנת לגרסה 1 (זה הפתרון ל-404)
-API_URL = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+# כתובת ה-API של המודל היציב ביותר
+API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={API_KEY}"
 
-# --- אבטחה ---
 if 'auth' not in st.session_state:
     st.session_state['auth'] = False
 
@@ -23,19 +22,21 @@ if not st.session_state['auth']:
             st.rerun()
     st.stop()
 
-# --- ממשק ---
 st.title("🏛️ קבינט המוחות של אפי")
-idea = st.text_area("הזן נושא לדיון:", height=150)
+idea = st.text_area("הזן את סוגיית הליבה לדיון:", height=150)
 
 if st.button("🚀 הפעל סימולציה"):
     if idea:
-        with st.spinner("הקבינט מתכנס (חיבור יציב v1)..."):
-            prompt_text = f"נתח עבור אפי כקבינט של ארנדט, ויטגנשטיין, פיאז'ה, בנדורה, דרוקר, האלוול ואורח בהפתעה: {idea}. צור ויכוח והסק 4 מסקנות."
+        with st.spinner("הקבינט מתכנס (Gemini Pro)..."):
+            prompt_text = f"""
+            נתח עבור אפי את הסוגיה: "{idea}"
+            המשתתפים: ויטגנשטיין, חנה ארנדט, פרויד, פיאז'ה, בנדורה, דרוקר והאלוול.
+            צור ויכוח והסק 4 מסקנות מעשיות.
+            """
             
             payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
             
             try:
-                # שליחת הבקשה לכתובת החדשה
                 response = requests.post(API_URL, json=payload)
                 if response.status_code == 200:
                     answer = response.json()['candidates'][0]['content']['parts'][0]['text']
