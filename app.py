@@ -4,10 +4,12 @@ import json
 
 st.set_page_config(page_title="קבינט העלית של אפי", layout="wide")
 
-# המפתח המתוקן בדיוק לפי הצילום (עם האות l הקטנה)
-CORRECT_API_KEY = "AIzaSyDHmleHY-2_yfvsXqxxw_WQnXo-vCf9OfY"
+# המפתח האחרון ששלחת - הוספתי לו הגנה מרווחים
+RAW_KEY = "AIzaSyCoonPoQvGp0AfZ_M5LKlBJEfQV9pI1TJw" 
+API_KEY = RAW_KEY.strip()
 
-API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={CORRECT_API_KEY}"
+# כתובת ה-API היציבה ביותר
+API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
 
 # --- אבטחה ---
 if 'auth' not in st.session_state:
@@ -23,36 +25,34 @@ if not st.session_state['auth']:
     st.stop()
 
 # --- ממשק ---
-st.title("🏛️ קבינט המוחות: נבחרת העלית")
-st.markdown("### ויטגנשטיין, ארנדט, פיאז'ה, בנדורה, דרוקר והאלוול")
+st.title("🏛️ קבינט המוחות של אפי")
+st.markdown("### ויטגנשטיין, ארנדט, פיאז'ה, בנדורה, דרוקר, וולש, הופמן והאלוול")
 
-idea = st.text_area("הזן את סוגיית הליבה לדיון:", height=150)
+idea = st.text_area("הזן נושא לדיון:", height=150, placeholder="למשל: אסטרטגיית לידים לעורכי דין...")
 
 if st.button("🚀 הפעל סימולציה"):
     if idea:
-        with st.spinner("המפתח אומת. הקבינט מתכנס כעת..."):
+        with st.spinner("הקבינט מתכנס..."):
             prompt_text = f"""
-            נתח עבור אפי את הסוגיה: "{idea}"
+            נתח עבור אפי את: "{idea}"
             המשתתפים: לודוויג ויטגנשטיין, חנה ארנדט, זיגמונד פרויד, ז'אן פיאז'ה, אלברט בנדורה, 
-            פיטר דרוקר, ג'ק וולש, ריד הופמן וד"ר אדוארד האלוול (ADHD).
-            הכנס 'אורח בהפתעה' אקראי שמתפרץ לדיון.
-            צור ויכוח סוער והסק 4 מסקנות מעשיות לאפי.
-            כתוב בעברית מקצועית.
+            פיטר דרוקר, ג'ק וולש, ריד הופמן וד"ר אדוארד האלוול.
+            הוסף אורח בהפתעה והסק 4 מסקנות מעשיות.
+            כתוב בעברית.
             """
             
             payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
-            headers = {'Content-Type': 'application/json'}
             
             try:
-                response = requests.post(API_URL, headers=headers, data=json.dumps(payload))
+                response = requests.post(API_URL, json=payload)
                 if response.status_code == 200:
-                    text = response.json()['candidates'][0]['content']['parts'][0]['text']
-                    st.markdown(text)
+                    answer = response.json()['candidates'][0]['content']['parts'][0]['text']
+                    st.markdown(answer)
                 else:
-                    st.error(f"שגיאת שרת: {response.status_code}")
-                    st.json(response.json())
+                    st.error(f"שגיאה {response.status_code}: גוגל לא מאשר את המפתח.")
+                    st.write("נסה להעתיק שוב את המפתח מ-AI Studio, וודא שלא חסרה אות בסוף.")
             except Exception as e:
                 st.error(f"תקלה: {str(e)}")
 
 st.divider()
-st.caption("קבינט המוחות | המפתח תוקן | 2026")
+st.caption("קבינט המוחות | 2026")
