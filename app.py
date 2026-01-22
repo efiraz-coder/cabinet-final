@@ -4,83 +4,60 @@ import pandas as pd
 import json
 import re
 
-# הגדרת דף רחב עם כותרת
 st.set_page_config(page_title="קבינט המוחות של אפי", layout="wide")
 
-# --- CSS משודרג: טיפוגרפיה מודרנית וכרטיסיות אסטרטגיות ---
+# --- CSS מתוקן: מניעת דריסת אותיות והגדלת פונטים ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&display=swap');
 
     html, body, [class*="st-"] {
         font-family: 'Assistant', sans-serif !important;
         direction: rtl !important;
         text-align: right !important;
         color: #1a1a1a !important;
+        line-height: 1.6 !important; /* מונע דריסת אותיות */
     }
 
-    .stApp { background-color: #f4f7f9 !important; }
+    /* הגדלת אותיות כללית */
+    p, span, label, input, button { font-size: 1.2rem !important; }
+    h1 { font-size: 2.5rem !important; color: #1e3a8a !important; padding-bottom: 20px; }
+    h3 { font-size: 1.8rem !important; margin-top: 25px !important; }
 
-    /* עיצוב כותרת ראשית */
-    h1 { 
-        color: #1e3a8a !important; 
-        font-weight: 700; 
-        border-bottom: 4px solid #3b82f6; 
-        padding-bottom: 15px;
+    .stApp { background-color: #ffffff !important; }
+
+    /* תיקון טבלת משתתפים - בהירות מקסימלית */
+    [data-testid="stDataEditor"] { 
+        background-color: #ffffff !important; 
+        border: 1px solid #e2e8f0;
+        font-size: 1.1rem !important;
+    }
+
+    /* כרטיסיות עם ריווח */
+    .step-card {
+        background-color: #f8fafc !important;
+        padding: 30px;
+        border-radius: 15px;
+        border: 1px solid #e2e8f0;
         margin-bottom: 30px;
     }
 
-    /* עיצוב כרטיסיות (Cards) לשלבי העבודה */
-    .stFieldBlock, .story-box, .step-card {
-        background-color: #ffffff !important;
-        padding: 25px;
-        border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        border: 1px solid #e2e8f0;
-        margin-bottom: 25px;
-    }
-
-    /* עיצוב תיבת הסיכום הסופי */
+    /* תיבת סיכום */
     .story-box {
+        background-color: #ffffff !important;
         border-right: 12px solid #1e3a8a;
-        line-height: 1.9;
-        font-size: 1.15em;
+        padding: 35px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+        font-size: 1.3rem !important;
+        line-height: 2 !important;
     }
 
-    /* כפתורים בעיצוב פרימיום */
-    div.stButton > button {
-        background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 8px !important;
-        height: 3.8em;
-        font-weight: 700;
-        font-size: 1.1em;
-        transition: transform 0.2s ease;
-    }
-    
-    div.stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 15px rgba(59, 130, 246, 0.3);
-    }
-
-    /* טבלאות בעיצוב נקי */
-    table { width: 100%; direction: rtl; border-collapse: collapse; margin-top: 20px; }
-    th { background-color: #f1f5f9 !important; color: #1e3a8a !important; font-weight: 700; padding: 12px; border: 1px solid #cbd5e1; }
-    td { padding: 12px; border: 1px solid #cbd5e1; background-color: #ffffff; }
-
-    /* רדיו באטנס (שאלון אמריקאי) */
-    div[data-baseweb="radio"] { gap: 10px; }
-    label[data-baseweb="radio"] { 
-        background-color: #f8fafc; 
-        padding: 10px 20px; 
-        border-radius: 8px; 
-        border: 1px solid #e2e8f0; 
-    }
+    /* תיקון לאייקונים וכותרות שעולים אחד על השני */
+    .stExpander { margin-top: 15px !important; border: none !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- פונקציות עזר ---
+# --- פונקציות ---
 def extract_json(text):
     try:
         match = re.search(r'\[.*\]', text, re.DOTALL)
@@ -95,67 +72,61 @@ def call_gemini(prompt):
     res = requests.post(url, json=payload)
     return res.json()['candidates'][0]['content']['parts'][0]['text'] if res.status_code == 200 else ""
 
-# --- הגדרת משתתפים ---
-if 'participants_df' not in st.session_state:
-    data = {
-        "שם": ["חנה ארנדט", "לודוויג ויטגנשטיין", "פיטר דרוקר", "אדוארד האלוול", "זיגמונד פרויד", "זאן פיאזה", "אלברט בנדורה", "גק וולש", "ריד הופמן"],
-        "סיווג": ["פילוסופיה", "שפה", "ניהול", "קוגניציה", "פסיכולוגיה", "התפתחות", "חברה", "עסקים", "נטוורקינג"]
-    }
-    st.session_state['participants_df'] = pd.DataFrame(data)
-
-# --- ממשק משתמש ---
+# --- תוכן ---
 st.title("🏛️ קבינט המוחות של אפי")
 
-with st.expander("👤 ניהול הרכב הקבינט"):
-    st.session_state['participants_df'] = st.data_editor(st.session_state['participants_df'], num_rows="dynamic", use_container_width=True)
+if 'participants_df' not in st.session_state:
+    st.session_state['participants_df'] = pd.DataFrame({
+        "שם": ["חנה ארנדט", "לודוויג ויטגנשטיין", "פיטר דרוקר", "אדוארד האלוול", "זיגמונד פרויד", "זאן פיאזה", "אלברט בנדורה", "גק וולש", "ריד הופמן"],
+        "מומחיות": ["פילוסופיה וחברה", "לוגיקה ושפה", "ניהול ואסטרטגיה", "הפרעות קשב וריכוז", "פסיכולוגיה", "למידה וילדים", "התנהגות חברתית", "מנהיגות עסקית", "קשרים ויזמות"]
+    })
 
-# שלב 1: נושא
+with st.expander("👤 מי יושב היום בקבינט? (לחץ לעריכה)"):
+    st.session_state['participants_df'] = st.data_editor(st.session_state['participants_df'], use_container_width=True)
+
 st.markdown('<div class="step-card">', unsafe_allow_html=True)
-st.subheader("🖋️ שלב 1: הגדרת הסוגיה")
-idea = st.text_area("על מה נדון היום?", height=100, placeholder="הזן את האתגר או הרעיון שלך...")
-if st.button("🔍 התחל אבחון אסטרטגי"):
+st.subheader("🖋️ מה הנושא שעל הפרק?")
+idea = st.text_area("", height=100, placeholder="למשל: אני מרגיש תקוע בשיווק של העסק החדש שלי...")
+
+if st.button("❓ התחל להתייעץ"):
     if idea:
-        members = ", ".join(st.session_state['participants_df']["שם"].tolist())
-        prompt = f"נושא: {idea}. משתתפים: {members}. נסח 4 שאלות אבחון עם 3 אפשרויות לכל אחת ב-JSON: [{{'q': '...', 'options': [...]}}, ...]"
-        with st.spinner("חברי הקבינט מתייעצים..."):
+        prompt = f"""
+        נושא: {idea}. 
+        משימה: נסח 4 שאלות אבחון פשוטות. 
+        חשוב מאוד: אל תשתמש במושגים מקצועיים מפסיכולוגיה או פילוסופיה. 
+        דבר בשפה יומיומית שכל אדם מבין.
+        החזר JSON: [{{'q': 'שאלה פשוטה', 'options': ['תשובה א', 'תשובה ב', 'תשובה ג']}}, ...]
+        """
+        with st.spinner("הקבינט חושב על שאלות פשוטות..."):
             raw = call_gemini(prompt)
             qs = extract_json(raw)
             if qs: st.session_state['structured_questions'] = qs
 st.markdown('</div>', unsafe_allow_html=True)
 
-# שלב 2: שאלון
 if 'structured_questions' in st.session_state:
     st.markdown('<div class="step-card">', unsafe_allow_html=True)
-    st.subheader("📝 שלב 2: אבחון מותאם אישית")
-    st.progress(0.5) # מחוון התקדמות
+    st.subheader("📝 בוא נדייק את התמונה")
     user_answers = []
     for i, item in enumerate(st.session_state['structured_questions']):
-        st.write(f"**{item['q']}**")
-        choice = st.radio(f"שאלה {i}", item['options'] + ["אחר (פירוט חופשי)"], key=f"r_{i}", label_visibility="collapsed")
+        st.markdown(f"**{item['q']}**")
+        choice = st.radio(f"שאלה {i}", item['options'] + ["אחר (כתוב בעצמך)"], key=f"r_{i}", label_visibility="collapsed")
         ans = choice
-        if choice == "אחר (פירוט חופשי)":
-            ans = st.text_input(f"פרט כאן (שאלה {i+1}):", key=f"t_{i}")
-        user_answers.append(f"ש: {item['q']} | ת: {ans}")
+        if choice == "אחר (כתוב בעצמך)":
+            ans = st.text_input(f"פרט כאן:", key=f"t_{i}")
+        user_answers.append(f"שאלה: {item['q']} | תשובה: {ans}")
 
-    if st.button("🚀 הפק תוכנית פעולה"):
+    if st.button("🎭 הצג סיכום והנחיות"):
         summary_prompt = f"""
-        נושא: {idea}. תשובות: {user_answers}. משתתפים: {st.session_state['participants_df']['שם'].tolist()}.
-        1. סיפור לוגי מעמיק עם הפניות למספרים [1].
-        2. פרק ציטוטים בסוף.
-        3. טבלה אסטרטגית: | בעיה | פתרון | דרך | תפוקות | תשומות |
+        נושא: {idea}. תשובות: {user_answers}. 
+        כתוב סיפור מעניין ומחכים המבוסס על חברי הקבינט. 
+        בסוף הצג טבלה: | בעיה | פתרון | דרך | תפוקות | תשומות |
+        השתמש בשפה פשוטה, חמה ומעודדת.
         """
-        with st.spinner("הקבינט מגבש את המסקנות הסופיות..."):
+        with st.spinner("הקבינט מכין לך מפת דרכים..."):
             st.session_state['final_result'] = call_gemini(summary_prompt)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# שלב 3: תוצאה
 if 'final_result' in st.session_state:
     st.markdown('<div class="story-box">', unsafe_allow_html=True)
-    st.subheader("📜 התוצר האסטרטגי")
     st.markdown(st.session_state['final_result'].replace('\n', '<br>'), unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    if st.button("🧹 פתח סוגיה חדשה"):
-        for k in ['structured_questions', 'final_result']:
-            if k in st.session_state: del st.session_state[k]
-        st.rerun()
