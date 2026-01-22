@@ -1,48 +1,38 @@
 import streamlit as st
 import requests
-import json
 
-st.set_page_config(page_title="קבינט העלית של אפי", layout="wide")
+st.set_page_config(page_title="קבינט המוחות של אפי", layout="wide")
 
-# המפתח המנצח שלך
-NEW_API_KEY = "AIzaSyAxt5rZVuevd2Drx9-uGKUCLfhPzFkGAEg"
+# המפתח שלך
+API_KEY = "AIzaSyAxt5rZVuevd2Drx9-uGKUCLfhPzFkGAEg"
 
-# שימוש ב-v1 (בלי beta) ובשם המודל התקני
-API_URL = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={NEW_API_KEY}"
+# פונקציה לבדיקה מה גוגל מרשה לנו
+def get_available_models():
+    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={API_KEY}"
+    response = requests.get(url)
+    return response.json()
 
-# --- אבטחה ---
-if 'auth' not in st.session_state:
-    st.session_state['auth'] = False
+st.title("🏛️ קבינט המוחות: בדיקת חיבור")
 
-if not st.session_state['auth']:
-    st.title("🏛️ כניסה לקבינט")
-    pwd = st.text_input("הזן סיסמה:", type="password")
-    if st.button("התחבר"):
-        if pwd == "אפי2026":
-            st.session_state['auth'] = True
-            st.rerun()
-    st.stop()
-
-# --- ממשק ---
-st.title("🏛️ קבינט המוחות של אפי")
-idea = st.text_area("הזן סוגיה לדיון:", height=150)
-
-if st.button("🚀 הפעל סימולציה"):
-    if idea:
-        with st.spinner("מתחבר לשרת הראשי של גוגל (V1)..."):
-            prompt_text = f"נתח עבור אפי כקבינט של ארנדט, ויטגנשטיין, דרוקר והאלוול: {idea}. צור ויכוח והסק 4 מסקנות."
-            payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
-            
-            try:
-                response = requests.post(API_URL, json=payload)
-                if response.status_code == 200:
-                    answer = response.json()['candidates'][0]['content']['parts'][0]['text']
-                    st.markdown(answer)
-                else:
-                    st.error(f"שגיאת שרת {response.status_code}")
-                    st.json(response.json())
-            except Exception as e:
-                st.error(f"תקלה: {str(e)}")
+# כפתור בדיקה
+if st.button("🔍 בדוק אילו מודלים זמינים לי"):
+    models_data = get_available_models()
+    st.write("גוגל אומרת שהמודלים הבאים פתוחים עבורך:")
+    st.json(models_data)
 
 st.divider()
-st.caption("קבינט המוחות | חיבור רשמי V1 | 2026")
+
+# ניסיון הרצה עם שם מודל גנרי (ללא מספר גרסה ספציפי)
+idea = st.text_input("הזן נושא לבדיקה:")
+if st.button("🚀 נסה להפעיל"):
+    # אנחנו מנסים את השם הכי בסיסי שקיים במערכת
+    test_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={API_KEY}"
+    payload = {"contents": [{"parts": [{"text": f"תגיד שלום לאפי: {idea}"}]}]}
+    
+    res = requests.post(test_url, json=payload)
+    if res.status_code == 200:
+        st.success("הצלחה! הקבינט יכול לעבוד.")
+        st.write(res.json()['candidates'][0]['content']['parts'][0]['text'])
+    else:
+        st.error(f"שגיאה {res.status_code}. לחץ על הכפתור למעלה כדי לראות איזה מודל גוגל רוצה.")
+        st.json(res.json())
