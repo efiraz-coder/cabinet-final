@@ -1,19 +1,83 @@
 import streamlit as st
 import requests
 import pandas as pd
+import json
+import re
 
+# הגדרת דף
 st.set_page_config(page_title="קבינט המוחות של אפי", layout="wide")
 
-# CSS לשיפור הניראות ויישור RTL
+# CSS אגרסיבי - דורס את הגדרות המערכת לטובת שחור על לבן
 st.markdown("""
     <style>
-    .main, .block-container { direction: rtl; text-align: right; }
-    input, textarea, .stSelectbox { direction: rtl !important; text-align: right !important; color: black !important; }
-    .story-box { border-right: 8px solid #1abc9c; padding: 30px; background-color: #ffffff; color: #1a1a1a !important; border-radius: 15px 0 0 15px; line-height: 1.8; font-size: 1.1em; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-    .quote-section { background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-top: 20px; font-style: italic; }
-    div.stButton > button { width: 100%; border-radius: 10px; height: 3.5em; background-color: #2c3e50; color: white; font-weight: bold; }
+    /* הפיכת כל הרקע ללבן נקי */
+    .stApp {
+        background-color: #FFFFFF !important;
+    }
+    
+    /* הפיכת כל הטקסט באפליקציה לשחור עז */
+    .stApp, .stMarkdown, p, h1, h2, h3, h4, li, span, label {
+        color: #000000 !important;
+        direction: rtl !important;
+        text-align: right !important;
+    }
+
+    /* עיצוב שדות הקלט - רקע אפור בהיר מאוד עם טקסט שחור */
+    input, textarea, [data-baseweb="select"], [data-baseweb="radio"] {
+        background-color: #F8F9FA !important;
+        color: #000000 !important;
+        border: 2px solid #2c3e50 !important;
+    }
+
+    /* תיבת הסיכום האסטרטגי - מראה של מסמך רשמי */
+    .story-box {
+        border-right: 10px solid #2c3e50;
+        padding: 30px;
+        background-color: #FFFFFF;
+        color: #000000 !important;
+        border-radius: 5px;
+        line-height: 1.8;
+        font-size: 1.2em;
+        box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        margin-top: 20px;
+        border: 1px solid #EEEEEE;
+    }
+
+    /* טבלאות - שחור על לבן */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        color: #000000 !important;
+        background-color: white !important;
+    }
+    th, td {
+        border: 1px solid #000000 !important;
+        padding: 12px;
+        text-align: right;
+    }
+    th {
+        background-color: #F2F2F2 !important;
+    }
+
+    /* כפתור הפעלה גדול ובולט */
+    div.stButton > button {
+        background-color: #000000 !important;
+        color: #FFFFFF !important;
+        border-radius: 0px;
+        height: 4em;
+        font-size: 1.2em;
+        font-weight: bold;
+    }
     </style>
     """, unsafe_allow_html=True)
+
+# פונקציית חילוץ JSON
+def extract_json(text):
+    try:
+        match = re.search(r'\[.*\]', text, re.DOTALL)
+        if match: return json.loads(match.group())
+        return json.loads(text)
+    except: return None
 
 # חיבור ל-API
 API_KEY = st.secrets["GEMINI_KEY"]
@@ -36,53 +100,60 @@ with st.expander("👤 ניהול חברי הקבינט"):
     st.session_state['participants_df'] = st.data_editor(st.session_state['participants_df'], num_rows="dynamic", use_container_width=True)
 
 st.subheader("🖋️ שלב א': הגדרת הסוגיה")
-idea = st.text_area("מה הנושא שעל הפרק?", height=80)
+idea = st.text_area("מה הנושא שעל הפרק?", height=100)
 
-if st.button("❓ שאלות מנחות"):
+if st.button("❓ שלח וקבל שאלות אבחון"):
     if idea:
         members = ", ".join(st.session_state['participants_df']["שם"].tolist())
-        prompt = f"נושא: {idea}. משתתפים: {members}. נסח 4 שאלות אבחון. לכל שאלה הצע 3 תשובות אפשריות קצרות. ענה בפורמט JSON: [{{'q': 'שאלה', 'options': ['א', 'ב', 'ג']}}, ...]"
-        res = call_gemini(prompt)
-        try:
-            # ניקוי פורמט JSON מהתשובה
-            clean_res = res.replace('```json', '').replace('```', '').strip()
-            st.session_state['structured_questions'] = json.loads(clean_res)
-        except:
-            st.error("הקבינט מתקשה בעיבוד השאלות, נסה שנית.")
+        prompt = f"""
+        נושא: {idea}. משתתפים: {members}. 
+        נסח 4 שאלות אבחון. לכל שאלה הצע 3 תשובות אפשריות.
+        החזר אך ורק פורמט JSON תקני:
+        [
+          {{"q": "שאלה 1", "options": ["אופציה א", "אופציה ב", "אופציה ג"]}},
+          ...
+        ]
+        """
+        with st.spinner("הקבינט מגבש שאלות..."):
+            raw_res = call_gemini(prompt)
+            questions = extract_json(raw_res)
+            if questions: st.session_state['structured_questions'] = questions
+            else: st.error("הקבינט לא הצליח לייצר שאלון, נסה שוב.")
 
 if 'structured_questions' in st.session_state:
-    st.markdown("### 📝 שאלון אבחון מהיר")
+    st.markdown("### 📝 שאלון אבחון מהיר (בחר תשובה):")
     user_answers = []
     for i, item in enumerate(st.session_state['structured_questions']):
-        options = item['options'] + ["אחר (כתיבה חופשית)"]
-        choice = st.radio(item['q'], options, key=f"q_{i}")
+        options = item['options'] + ["אחר (פרט למטה)"]
+        st.write(f"**{i+1}. {item['q']}**")
+        choice = st.radio(f"בחירה לשאלה {i}", options, key=f"q_{i}", label_visibility="collapsed")
         
         final_ans = choice
-        if choice == "אחר (כתיבה חופשית)":
-            final_ans = st.text_input(f"פרט עבור: {item['q']}", key=f"text_{i}")
+        if choice == "אחר (פרט למטה)":
+            final_ans = st.text_input(f"כתוב תשובה משלך לשאלה {i+1}:", key=f"text_{i}")
         
         user_answers.append(f"שאלה: {item['q']} | תשובה: {final_ans}")
 
     st.markdown("---")
-    if st.button("🎭 הפק סיכום אסטרטגי"):
+    if st.button("🎭 הפק סיכום אסטרטגי סופי"):
         members = ", ".join(st.session_state['participants_df']["שם"].tolist())
         context = "\n".join(user_answers)
         summary_prompt = f"""
-        נושא: {idea}. תשובות: {context}. משתתפים: {members}.
+        נושא: {idea}. תשובות אפי: {context}. משתתפים: {members}.
         
-        משימה:
-        1. ספר סיפור לוגי עמוק המנתח את המצב. הוסף מספר בסוגריים [x] בסוף משפטים המפנים לציטטות.
-        2. בסוף הסיפור, הוסף פרק 'מקורות וציטטות מהקבינט' עם הציטוטים המתאימים למספרים.
-        3. הצג טבלה אחת מסודרת: | בעיה | פתרון | דרך | תפוקות | תשומות |
-        4. יישור לימין, שפה עשירה.
+        דרישות:
+        1. סיפור לוגי מעמיק המנתח את המצב. הוסף מספר בסוגריים [1], [2] להפניה לציטוטים.
+        2. בסוף, פרק 'ציטוטים מהקבינט' לפי המספרים.
+        3. טבלה אסטרטגית הכוללת: | בעיה | פתרון | דרך | תפוקות | תשומות |
+        עברית רהוטה, הכל בשחור על לבן.
         """
-        with st.spinner("הקבינט מעבד את הנתונים..."):
+        with st.spinner("הקבינט כותב..."):
             st.session_state['final_result'] = call_gemini(summary_prompt)
 
 if 'final_result' in st.session_state:
     st.markdown("### 📜 התוצר האסטרטגי")
     st.markdown(f'<div class="story-box">{st.session_state["final_result"].replace("\n", "<br>")}</div>', unsafe_allow_html=True)
-    if st.button("🗑️ ניקוי דיון"):
+    if st.button("🗑️ נקה הכל והתחל מחדש"):
         for k in ['structured_questions', 'final_result']:
             if k in st.session_state: del st.session_state[k]
         st.rerun()
