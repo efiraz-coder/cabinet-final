@@ -5,88 +5,79 @@ import json
 import re
 import random
 
-# הגדרת דף
+# הגדרת דף בסיסית
 st.set_page_config(page_title="קבינט המוחות של אפי", layout="wide")
 
-# --- CSS מעודכן: שינוי רקע דף וצבעוניות מוגדרת ---
+# --- CSS מתקדם לפתרון בעיות עריכה וניראות ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;700&family=Assistant:wght@400;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&display=swap');
 
-    /* רקע דף תכלת-אפור יוקרתי */
-    .stApp { background-color: #f0f4f8 !important; }
+    /* רקע דף תכלת בהיר יוקרתי */
+    .stApp { background-color: #f0f7ff !important; }
 
+    /* הגדרות טקסט וגופנים - מניעת דריסה */
     html, body, [class*="st-"] {
-        font-family: 'Heebo', 'Assistant', sans-serif !important;
+        font-family: 'Assistant', sans-serif !important;
         direction: rtl !important;
         text-align: right !important;
-        color: #000000 !important;
-        line-height: 2.0 !important;
+        color: #1a1a1a !important;
+        line-height: 2.2 !important; /* ריווח שורות ענק למניעת עליה אחת על השנייה */
     }
 
-    /* שורות כתיבה וטבלאות על רקע ירוק בהיר */
+    /* כותרות מרווחות */
+    h1, h2, h3 { 
+        padding-top: 20px !important; 
+        padding-bottom: 10px !important;
+        margin-bottom: 15px !important;
+    }
+
+    /* שדות כתיבה וטבלאות על רקע ירוק בהיר מאוד */
     textarea, input, [data-testid="stDataEditor"] {
-        background-color: #e8f5e9 !important; 
-        color: #000000 !important;
-        border: 2px solid #2e7d32 !important;
-        font-size: 1.3rem !important;
-        border-radius: 8px;
+        background-color: #f1fbf1 !important;
+        border: 2px solid #a5d6a7 !important;
+        border-radius: 10px !important;
+        font-size: 1.2rem !important;
     }
 
-    /* כפתורים על רקע כחול בהיר עם כיתוב שחור */
+    /* כפתורים על רקע כחול בהיר עם כיתוב שחור בולט */
     div.stButton > button {
-        background-color: #bbdefb !important; 
+        background-color: #bbdefb !important;
         color: #000000 !important;
-        border: 2px solid #1976d2 !important;
-        height: 3.5em !important;
+        border: 2px solid #1e88e5 !important;
+        height: 3.8em !important;
         width: 100% !important;
-        font-size: 1.4rem !important;
+        font-size: 1.3rem !important;
         font-weight: bold !important;
         border-radius: 12px !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important;
     }
 
-    /* עיצוב שאלון (רדיו) על רקע כחול בהיר */
-    div[data-baseweb="radio"] {
-        background-color: #e3f2fd !important;
-        padding: 20px;
-        border-radius: 15px;
-        border: 1px solid #90caf9;
-        margin-bottom: 20px;
-    }
-
-    /* תיבת תוצאה סופית */
+    /* תיבת התוצאה הסופית */
     .result-box {
-        border: 4px solid #1976d2;
-        padding: 35px;
+        border: 4px solid #1e88e5;
+        padding: 40px;
         background-color: #ffffff;
+        border-radius: 20px;
         margin-top: 30px;
-        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
     }
-
-    h1 { color: #0d47a1 !important; font-weight: 800 !important; }
-    h3 { color: #1565c0 !important; border-bottom: 2px solid #1565c0; padding-bottom: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- ניהול דמויות ---
+# --- לוגיקת קבינט אקראי ---
 if 'pool_standard' not in st.session_state:
     st.session_state.pool_standard = [
         {"שם": "פיטר דרוקר", "תואר": "אבי הניהול", "התמחות": "אסטרטגיה וארגון"},
         {"שם": "חנה ארנדט", "תואר": "פילוסופית", "התמחות": "חברה ופוליטיקה"},
         {"שם": "זיגמונד פרויד", "תואר": "פסיכולוג", "התמחות": "תת מודע ודחפים"},
-        {"שם": "לודוויג ויטגנשטיין", "תואר": "פילוסוף שפה", "התמחות": "לוגיקה ומשמעות"},
-        {"שם": "ג'ק וולש", "תואר": "מנכ\"ל אגדי", "התמחות": "ניהול ביצועים"},
-        {"שם": "דניאל כהנמן", "תואר": "כלכלן התנהגותי", "התמחות": "קבלת החלטות"},
-        {"שם": "אברהם מאסלו", "תואר": "פסיכולוג", "התמחות": "מדרג הצרכים ומוטיבציה"},
-        {"שם": "מילטון פרידמן", "תואר": "כלכלן", "התמחות": "שוק חופשי ואסטרטגיה"}
+        {"שם": "לודוויג ויטגנשטיין", "תואר": "פילוסוף", "התמחות": "לוגיקה ושפה"},
+        {"שם": "ג'ק וולש", "תואר": "מנכ\"ל", "התמחות": "מנהיגות ביצועית"}
     ]
     st.session_state.pool_surprise = [
-        {"שם": "סון דזו", "תואר": "אסטרטג סיני", "התמחות": "אמנות המלחמה"},
-        {"שם": "סטיב ג'ובס", "תואר": "יזם", "התמחות": "חוויית משתמש וחדשנות"},
-        {"שם": "מרקוס אורליוס", "תואר": "קיסר ופילוסוף", "התמחות": "חוסן נפשי (סטואיציזם)"},
-        {"שם": "לאונרדו דה וינצ'י", "תואר": "גאון רב-תחומי", "התמחות": "פתרון בעיות יצירתי"},
-        {"שם": "אלכסנדר הגדול", "תואר": "מצביא", "התמחות": "כיבוש יעדים והתרחבות"},
-        {"שם": "מרי קירי", "תואר": "מדענית", "התמחות": "חקר הלא נודע"}
+        {"שם": "סון דזו", "תואר": "אסטרטג", "התמחות": "אמנות המלחמה"},
+        {"שם": "קוקו שאנל", "תואר": "יזמית", "התמחות": "מיתוג ושבירת מוסכמות"},
+        {"שם": "מרקוס אורליוס", "תואר": "קיסר", "התמחות": "חוסן מנטלי וסטואיציזם"}
     ]
 
 def refresh_cabinet():
@@ -97,7 +88,7 @@ def refresh_cabinet():
 if 'current_cabinet' not in st.session_state:
     refresh_cabinet()
 
-# --- פונקציות API ---
+# --- פונקציות API (כולל טיפול בשגיאות) ---
 def call_gemini(prompt):
     try:
         API_KEY = st.secrets["GEMINI_KEY"]
@@ -105,55 +96,17 @@ def call_gemini(prompt):
         res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]})
         if res.status_code == 200:
             return res.json()['candidates'][0]['content']['parts'][0]['text']
-        return "שגיאה בתקשורת עם הקבינט."
-    except Exception as e:
-        return f"תקלה: {str(e)}"
+        return "שגיאה זמנית בתקשורת. אנא נסה שוב."
+    except:
+        return "המערכת עמוסה כרגע. נסה שוב בעוד רגע."
 
 def extract_json(text):
     try:
         match = re.search(r'\[.*\]', text, re.DOTALL)
         return json.loads(match.group()) if match else None
-    except:
-        return None
+    except: return None
 
-# --- ממשק המשתמש ---
+# --- הממשק הויזואלי ---
 st.title("🏛️ קבינט המוחות של אפי")
 
-st.subheader("👥 הרכב הקבינט הנוכחי")
-if st.button("🔄 רענן הרכב (החלף משתתפים)"):
-    refresh_cabinet()
-
-for m in st.session_state.current_cabinet:
-    st.markdown(f"👤 **{m['שם']}** | {m['תואר']} | התמחות: {m['התמחות']}")
-
-st.markdown("---")
-
-st.subheader("🖋️ מה הנושא שעל הפרק?")
-idea = st.text_area("פרט את האתגר שלך:", height=100)
-
-if st.button("🔍 בנה שאלון אבחון"):
-    if idea:
-        names = [m['שם'] for m in st.session_state.current_cabinet]
-        prompt = f"נושא: {idea}. קבינט: {names}. נסח 4 שאלות אבחון פשוטות בשפה יומיומית. החזר JSON בלבד: [{{'q': 'שאלה', 'options': ['תשובה 1','2','3']}}, ...]"
-        with st.spinner("הקבינט מגבש שאלות..."):
-            res = call_gemini(prompt)
-            st.session_state['qs'] = extract_json(res)
-
-if 'qs' in st.session_state:
-    st.subheader("📝 שאלון אבחון מהיר")
-    ans_list = []
-    for i, item in enumerate(st.session_state['qs']):
-        st.markdown(f"**{i+1}. {item['q']}**")
-        choice = st.radio(f"שאלה {i}", item['options'] + ["אחר"], key=f"r_{i}")
-        ans_list.append(f"ש: {item['q']} | ת: {choice}")
-
-    if st.button("🚀 הפק 5 תובנות אסטרטגיות"):
-        names = [m['שם'] for m in st.session_state.current_cabinet]
-        prompt = f"נושא: {idea}. תשובות: {ans_list}. קבינט: {names}. כתוב 5 תובנות עמוקות ופשוטות. לאחר מכן טבלה: בעיה, פתרון, דרך, תפוקות, תשומות."
-        with st.spinner("הקבינט מנתח..."):
-            st.session_state['result'] = call_gemini(prompt)
-
-if 'result' in st.session_state:
-    st.markdown('<div class="result-box">', unsafe_allow_html=True)
-    st.markdown(st.session_state['result'].replace('\n', '<br>'), unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+st.subheader("👥 צוות הקבינט שלך לה
