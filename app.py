@@ -22,7 +22,9 @@ def call_cabinet_api(prompt):
         return None
     
     api_key = st.secrets["GEMINI_KEY"]
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}"
+    
+    # עדכון הכתובת לגרסה 1.5 פלאש - הכי יציבה כרגע
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     
     headers = {'Content-Type': 'application/json'}
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
@@ -32,20 +34,22 @@ def call_cabinet_api(prompt):
         if response.status_code == 200:
             return response.json()['candidates'][0]['content']['parts'][0]['text']
         else:
-            st.error(f"שגיאת שרת ({response.status_code})")
+            # כאן המערכת תגיד לנו בדיוק מה הבעיה אם ה-404 נמשך
+            st.error(f"שגיאת שרת ({response.status_code}): {response.text}")
             return None
     except Exception as e:
-        st.error(f"תקלה: {str(e)}")
+        st.error(f"תקלה בתקשורת: {str(e)}")
         return None
 
+# אתחול קבינט
 if 'cabinet' not in st.session_state:
     pool = [
-        {"שם": "פיטר דרוקר", "תואר": "אבי הניהול", "מומחיות": "אסטרטגיה"},
-        {"שם": "סטיב ג'ובס", "תואר": "יזם", "מומחיות": "חדשנות"},
-        {"שם": "סון דזו", "תואר": "אסטרטג סיני", "מומחיות": "טקטיקה"},
-        {"שם": "זיגמונד פרויד", "תואר": "פסיכולוג", "מומחיות": "נפש האדם"},
-        {"שם": "דניאל כהנמן", "תואר": "כלכלן", "מומחיות": "קבלת החלטות"},
-        {"שם": "מרקוס אורליוס", "תואר": "קיסר רומי", "מומחיות": "חוסן"}
+        {"שם": "פיטר דרוקר", "תואר": "אבי הניהול"},
+        {"שם": "סטיב ג'ובס", "תואר": "יזם"},
+        {"שם": "סון דזו", "תואר": "אסטרטג סיני"},
+        {"שם": "זיגמונד פרויד", "תואר": "פסיכולוג"},
+        {"שם": "דניאל כהנמן", "תואר": "כלכלן"},
+        {"שם": "מרקוס אורליוס", "תואר": "קיסר רומי"}
     ]
     st.session_state.cabinet = random.sample(pool, 6)
 
@@ -60,10 +64,10 @@ idea = st.text_area("🖋️ מה האתגר שלך?", height=120)
 
 if st.button("🔍 שלח לאבחון המומחים"):
     if idea:
-        with st.spinner("הקבינט מנסח שאלות..."):
+        with st.spinner("חברי הקבינט דנים בבעיה..."):
             experts_list = ", ".join([m['שם'] for m in st.session_state.cabinet])
             
-            # שים לב לסוגריים הכפולים {{ }} כאן למטה - זה התיקון!
+            # שימוש בסוגריים כפולים למניעת ValueError
             prompt = f"""
             Task: Act as a board of experts for: "{idea}".
             Experts: {experts_list}.
@@ -78,7 +82,10 @@ if st.button("🔍 שלח לאבחון המומחים"):
                 match = re.search(r'\[.*\]', clean_raw, re.DOTALL)
                 if match:
                     st.session_state.qs = json.loads(match.group())
+                    st.session_state.pop('final_result', None)
                     st.rerun()
+                else:
+                    st.error("הקבינט שלח תשובה לא תקינה. נסה שוב.")
 
 if 'qs' in st.session_state:
     st.markdown("---")
@@ -89,7 +96,7 @@ if 'qs' in st.session_state:
         user_answers.append(f"{item['expert']}: {choice}")
     
     if st.button("🚀 הפק דו\"ח תובנות"):
-        with st.spinner("מסכם..."):
+        with st.spinner("הקבינט מסכם..."):
             final_p = f"האתגר: {idea}. תשובות: {user_answers}. סכם ב-5 תובנות וטבלה."
             st.session_state.final_result = call_cabinet_api(final_p)
 
