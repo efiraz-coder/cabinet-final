@@ -4,17 +4,17 @@ import json
 
 st.set_page_config(page_title="קבינט העלית של אפי", layout="wide")
 
-# משיכת המפתח מה-Secrets בצורה מאובטחת
+# משיכת המפתח מה-Secrets
 try:
     API_KEY = st.secrets["GEMINI_KEY"]
 except:
-    st.error("שגיאה: המפתח לא נמצא ב-Secrets של Streamlit!")
+    st.error("המפתח לא נמצא ב-Secrets!")
     st.stop()
 
-# שימוש במודל Gemini 2.5 Pro היציב
-API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key={API_KEY}"
+# --- שינוי למודל FLASH (כדי למנוע שגיאת 429) ---
+MODEL_NAME = "gemini-1.5-flash" 
+API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent?key={API_KEY}"
 
-# --- אבטחה ---
 if 'auth' not in st.session_state:
     st.session_state['auth'] = False
 
@@ -27,13 +27,12 @@ if not st.session_state['auth']:
             st.rerun()
     st.stop()
 
-# --- ממשק ---
 st.title("🏛️ קבינט המוחות של אפי")
 idea = st.text_area("הזן סוגיית ליבה לדיון:", height=150)
 
 if st.button("🚀 הפעל סימולציית קבינט"):
     if idea:
-        with st.spinner("הקבינט של 2026 מתכנס לדיון (חיבור מאובטח)..."):
+        with st.spinner("הקבינט מתכנס (במהירות Flash)..."):
             prompt_text = f"נתח עבור אפי כקבינט של ארנדט, ויטגנשטיין, דרוקר והאלוול: {idea}. צור ויכוח והסק 4 מסקנות."
             payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
             
@@ -42,11 +41,13 @@ if st.button("🚀 הפעל סימולציית קבינט"):
                 if response.status_code == 200:
                     answer = response.json()['candidates'][0]['content']['parts'][0]['text']
                     st.markdown(answer)
+                elif response.status_code == 429:
+                    st.error("יותר מדי בקשות! המתן דקה ונסה שוב. (זה קורה כי אנחנו בגרסה החינמית)")
                 else:
-                    st.error(f"שגיאת שרת {response.status_code}")
+                    st.error(f"שגיאה {response.status_code}")
                     st.json(response.json())
             except Exception as e:
-                st.error(f"תקלה בחיבור: {str(e)}")
+                st.error(f"תקלה: {str(e)}")
 
 st.divider()
-st.caption("קבינט המוחות | חיבור מאובטח | 2026")
+st.caption("קבינט המוחות | Gemini Flash | 2026")
