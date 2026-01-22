@@ -54,22 +54,20 @@ if 'current_cabinet' not in st.session_state:
     ]
     st.session_state.current_cabinet = random.sample(pool_std, 3) + random.sample(pool_surp, 3)
 
-# --- פונקציית API מתוקנת למניעת שגיאות שורה ---
 def call_api(prompt):
     try:
         api_key = st.secrets["GEMINI_KEY"]
-        # פיצול הכתובת כדי למנוע SyntaxError בגלל אורך שורה
         base_url = "https://generativelanguage.googleapis.com/v1beta/models/"
         model_url = "gemini-flash-latest:generateContent?key="
         full_url = f"{base_url}{model_url}{api_key}"
         
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
-        res = requests.post(full_url, json=payload)
+        res = requests.post(full_url, json=payload, timeout=15)
         
         if res.status_code == 200:
             return res.json()['candidates'][0]['content']['parts'][0]['text']
         return None
-    except:
+    except Exception as e:
         return None
 
 # --- ממשק ---
@@ -82,23 +80,54 @@ for i, m in enumerate(st.session_state.current_cabinet):
         st.info(f"👤 **{m['שם']}**\n\n{m['תואר']}")
 
 st.markdown("---")
-idea = st.text_area("🖋️ תאר את האתגר שלך:", height=100)
+idea = st.text_area("🖋️ תאר את האתגר שלך:", height=100, placeholder="למשל: איך להגדיל את המכירות בעסק שלי?")
 
 if st.button("🔍 התחל סבב שאלות אישיות"):
     if idea:
-        with st.spinner("חברי הקבינט מנסחים שאלות..."):
-            experts = [f"{m['שם']} ({m['התמחות']})" for m in st.session_state.current_cabinet]
-            prompt = f"נושא: {idea}. מומחים: {experts}. נסח 6 שאלות (אחת לכל מומחה) בפורמט JSON בלבד: [{{'expert': '...', 'q': '...', 'options': ['...']}}]"
+        with st.spinner("חברי הקבינט מנתחים ומנסחים שאלות..."):
+            experts_desc = ", ".join([f"{m['שם']} ({m['התמחות']})" for m in st.session_state.current_cabinet])
+            
+            # פרומפט הרבה יותר נוקשה למניעת שגיאות JSON
+            prompt = f"""
+            Task: Create a 6-question diagnostic survey for this problem: "{idea}".
+            Experts: {experts_desc}.
+            Instructions: Each expert asks ONE question from their perspective.
+            Format: Output ONLY a valid JSON list of objects. No markdown, no comments.
+            Structure: [{{"expert": "Name", "q": "Question", "options": ["Option A", "Option B", "Option C"]}}]
+            """
+            
             raw = call_api(prompt)
-            match = re.search(r'\[.*\]', raw, re.DOTALL) if raw else None
-            if match:
-                st.session_state.qs = json.loads(match.group())
-                if 'res' in st.session_state: del st.session_state['res']
-            else:
-                st.error("הקבינט זקוק לניסוח מחדש. אנא נסה שוב.")
+            # ניקוי שאריות טקסט שה-AI לפעמים מוסיף
+            if raw:
+                raw_clean = raw.replace('```json', '').replace('```', '').strip()
+                match = re.search(r'\[.*\]', raw_clean, re.DOTALL)
+                if match:
+                    try:
+                        st.session_state.qs = json.loads(match.group())
+                        if 'res' in st.session_state: del st.session_state['res']
+                        st.rerun()
+                    except:
+                        st.error("הקבינט שלח תשובה לא קריאה. נסה שוב.")
+                else:
+                    st.error("הקבינט זקוק לניסוח מחדש. אנא נסה שוב.")
 
 if 'qs' in st.session_state and st.session_state.qs:
     st.subheader("📝 סבב שאלות האבחון")
     ans_data = []
+    
+    # הצגת השאלות בתוך תיבות מעוצבות
     for i, item in enumerate(st.session_state.qs):
-        st.markdown
+        with st.container():
+            st.markdown(f"**💬 {item.get('expert', 'מומחה')} שואל/ת:**")
+            choice = st.radio(item['q'], item['options'], key=f"q_{i}")
+            ans_data.append(f"מומחה: {item.get('expert')} | שאלה: {item['q']} | תשובה: {choice}")
+            st.markdown("---")
+
+    if st.button("🚀 הפק תובנות אסטרטגיות"):
+        with st.spinner("מגבש המלצות סופיות..."):
+            p_final = f"נושא: {idea}. תשובות לשאלון האבחון: {ans_data}. כתוב 5 תובנות אסטרטגיות עמוקות וטבלה מסכמת הכוללת: בעיה, פתרון, דרך ביצוע, ותפוקות."
+            st.session_state.res = call_api(p_final)
+
+if 'res' in st.session_state:
+    st.markdown("### 📊 מסקנות הקבינט של אפי")
+    st.info(st.session_state.res)
