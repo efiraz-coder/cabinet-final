@@ -1,14 +1,15 @@
 import streamlit as st
-import google.generativeai as genai
+import requests
+import json
 
 st.set_page_config(page_title="קבינט העלית של אפי", layout="wide")
 
-# חיבור ל-API
-genai.configure(api_key="AIzaSyB12avvwGP6ECzfzTFOLDdfJHW37EQJvVo")
+# הגדרות ה-API
+API_KEY = "AIzaSyB12avvwGP6ECzfzTFOLDdfJHW37EQJvVo"
+# הכתובת הישירה - שים לב ל-v1 (ולא v1beta)
+API_URL = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
 
-# שימוש בשם המודל המדויק והמעודכן ביותר
-model = genai.GenerativeModel('gemini-1.5-flash-latest')
-
+# --- אבטחה ---
 if 'auth' not in st.session_state:
     st.session_state['auth'] = False
 
@@ -21,20 +22,43 @@ if not st.session_state['auth']:
             st.rerun()
     st.stop()
 
+# --- ממשק ---
 st.title("🏛️ קבינט המוחות: נבחרת העלית")
+st.markdown("### ויטגנשטיין, ארנדט, פיאז'ה, בנדורה, דרוקר והאלוול")
+
 idea = st.text_area("הזן את סוגיית הליבה לדיון:", height=150)
 
 if st.button("🚀 הפעל סימולציה"):
-    with st.spinner("הקבינט מתכנס..."):
-        try:
-            prompt = f"""
-            נתח את הסוגייה: "{idea}"
-            המשתתפים: ויטגנשטיין, חנה ארנדט, פרויד, פיאז'ה, אלברט בנדורה, דרוקר, וולש, ריד הופמן וד"ר האלוול (ADHD).
-            הוסף אורח אקראי בהפתעה מתחום שונה לגמרי.
-            צור ויכוח סוער ופורה והסק 4 מסקנות מעשיות לאפי.
+    if idea:
+        with st.spinner("הקבינט מתכנס לדיון סוער (חיבור ישיר)..."):
+            # יצירת הפרומפט
+            prompt_text = f"""
+            נתח עבור אפי את: "{idea}"
+            המשתתפים: לודוויג ויטגנשטיין, חנה ארנדט, זיגמונד פרויד, ז'אן פיאז'ה, אלברט בנדורה, 
+            פיטר דרוקר, ג'ק וולש, ריד הופמן וד"ר אדוארד האלוול (מומחה ADHD).
+            בנוסף, הכנס 'אורח בהפתעה' אקראי מתחום אחר לגמרי שמתפרץ לדיון.
+            צור ויכוח פורה בין הדמויות והסק 4 מסקנות מעשיות לאפי.
+            כתוב בעברית רהוטה.
             """
-            # הכרחי למנוע שגיאת 404
-            response = model.generate_content(prompt)
-            st.markdown(response.text)
-        except Exception as e:
-            st.error(f"שגיאה: {str(e)}")
+            
+            # שליחת הבקשה ישירות ב-HTTP (עוקף את הספרייה הבעייתית)
+            payload = {
+                "contents": [{"parts": [{"text": prompt_text}]}]
+            }
+            headers = {'Content-Type': 'application/json'}
+            
+            try:
+                response = requests.post(API_URL, headers=headers, data=json.dumps(payload))
+                response_data = response.json()
+                
+                if response.status_code == 200:
+                    text = response_data['candidates'][0]['content']['parts'][0]['text']
+                    st.markdown(text)
+                else:
+                    st.error(f"שגיאת שרת: {response.status_code}")
+                    st.json(response_data)
+            except Exception as e:
+                st.error(f"תקלה בחיבור: {str(e)}")
+
+st.divider()
+st.caption("קבינט המוחות | חיבור ישיר v1 | 2026")
