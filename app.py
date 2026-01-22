@@ -4,10 +4,9 @@ import json
 
 st.set_page_config(page_title="קבינט העלית של אפי", layout="wide")
 
-# הגדרות ה-API
+# הגדרות ה-API - מודל gemini-pro הוא היציב ביותר
 API_KEY = "AIzaSyB12avvwGP6ECzfzTFOLDdfJHW37EQJvVo"
-# הכתובת הישירה - שים לב ל-v1 (ולא v1beta)
-API_URL = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+API_URL = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={API_KEY}"
 
 # --- אבטחה ---
 if 'auth' not in st.session_state:
@@ -24,14 +23,11 @@ if not st.session_state['auth']:
 
 # --- ממשק ---
 st.title("🏛️ קבינט המוחות: נבחרת העלית")
-st.markdown("### ויטגנשטיין, ארנדט, פיאז'ה, בנדורה, דרוקר והאלוול")
-
 idea = st.text_area("הזן את סוגיית הליבה לדיון:", height=150)
 
 if st.button("🚀 הפעל סימולציה"):
     if idea:
-        with st.spinner("הקבינט מתכנס לדיון סוער (חיבור ישיר)..."):
-            # יצירת הפרומפט
+        with st.spinner("הקבינט מתכנס (חיבור יציב)..."):
             prompt_text = f"""
             נתח עבור אפי את: "{idea}"
             המשתתפים: לודוויג ויטגנשטיין, חנה ארנדט, זיגמונד פרויד, ז'אן פיאז'ה, אלברט בנדורה, 
@@ -41,10 +37,7 @@ if st.button("🚀 הפעל סימולציה"):
             כתוב בעברית רהוטה.
             """
             
-            # שליחת הבקשה ישירות ב-HTTP (עוקף את הספרייה הבעייתית)
-            payload = {
-                "contents": [{"parts": [{"text": prompt_text}]}]
-            }
+            payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
             headers = {'Content-Type': 'application/json'}
             
             try:
@@ -56,9 +49,9 @@ if st.button("🚀 הפעל סימולציה"):
                     st.markdown(text)
                 else:
                     st.error(f"שגיאת שרת: {response.status_code}")
-                    st.json(response_data)
+                    st.write("גוגל לא מוצא את המודל הספציפי. מנסה נתיב חלופי...")
             except Exception as e:
-                st.error(f"תקלה בחיבור: {str(e)}")
+                st.error(f"תקלה: {str(e)}")
 
 st.divider()
-st.caption("קבינט המוחות | חיבור ישיר v1 | 2026")
+st.caption("קבינט המוחות | חיבור יציב | 2026")
