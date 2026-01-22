@@ -13,10 +13,8 @@ st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;700&family=Assistant:wght@400;700&display=swap');
 
-    /* שינוי רקע הדף כולו לתכלת-אפרפר בהיר ויוקרתי */
-    .stApp {
-        background-color: #f0f4f8 !important;
-    }
+    /* רקע דף תכלת-אפור יוקרתי */
+    .stApp { background-color: #f0f4f8 !important; }
 
     html, body, [class*="st-"] {
         font-family: 'Heebo', 'Assistant', sans-serif !important;
@@ -26,8 +24,8 @@ st.markdown("""
         line-height: 2.0 !important;
     }
 
-    /* שדות כתיבה וטבלאות על רקע ירוק בהיר */
-    textarea, input, [data-testid="stDataEditor"], [data-testid="stTable"] {
+    /* שורות כתיבה וטבלאות על רקע ירוק בהיר */
+    textarea, input, [data-testid="stDataEditor"] {
         background-color: #e8f5e9 !important; 
         color: #000000 !important;
         border: 2px solid #2e7d32 !important;
@@ -37,7 +35,7 @@ st.markdown("""
 
     /* כפתורים על רקע כחול בהיר עם כיתוב שחור */
     div.stButton > button {
-        background-color: #bbdefb !important; /* כחול בהיר מודגש מעט יותר */
+        background-color: #bbdefb !important; 
         color: #000000 !important;
         border: 2px solid #1976d2 !important;
         height: 3.5em !important;
@@ -45,7 +43,6 @@ st.markdown("""
         font-size: 1.4rem !important;
         font-weight: bold !important;
         border-radius: 12px !important;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
     }
 
     /* עיצוב שאלון (רדיו) על רקע כחול בהיר */
@@ -54,25 +51,24 @@ st.markdown("""
         padding: 20px;
         border-radius: 15px;
         border: 1px solid #90caf9;
+        margin-bottom: 20px;
     }
 
-    /* תיבת תוצאה סופית - רקע לבן נקי כדי שהטקסט יקפוץ */
+    /* תיבת תוצאה סופית */
     .result-box {
         border: 4px solid #1976d2;
         padding: 35px;
         background-color: #ffffff;
         margin-top: 30px;
         border-radius: 15px;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
     }
 
-    /* הגדלת כותרות */
     h1 { color: #0d47a1 !important; font-weight: 800 !important; }
     h3 { color: #1565c0 !important; border-bottom: 2px solid #1565c0; padding-bottom: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- ניהול דמויות (כפי שביקשת) ---
+# --- ניהול דמויות ---
 if 'pool_standard' not in st.session_state:
     st.session_state.pool_standard = [
         {"שם": "פיטר דרוקר", "תואר": "אבי הניהול", "התמחות": "אסטרטגיה וארגון"},
@@ -94,7 +90,6 @@ if 'pool_standard' not in st.session_state:
     ]
 
 def refresh_cabinet():
-    # הגרלת 3 מהרגיל ו-3 מההפתעה
     std = random.sample(st.session_state.pool_standard, 3)
     surp = random.sample(st.session_state.pool_surprise, 3)
     st.session_state.current_cabinet = std + surp
@@ -102,25 +97,63 @@ def refresh_cabinet():
 if 'current_cabinet' not in st.session_state:
     refresh_cabinet()
 
-# --- ממשק משתמש ---
+# --- פונקציות API ---
+def call_gemini(prompt):
+    try:
+        API_KEY = st.secrets["GEMINI_KEY"]
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={API_KEY}"
+        res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]})
+        if res.status_code == 200:
+            return res.json()['candidates'][0]['content']['parts'][0]['text']
+        return "שגיאה בתקשורת עם הקבינט."
+    except Exception as e:
+        return f"תקלה: {str(e)}"
+
+def extract_json(text):
+    try:
+        match = re.search(r'\[.*\]', text, re.DOTALL)
+        return json.loads(match.group()) if match else None
+    except:
+        return None
+
+# --- ממשק המשתמש ---
 st.title("🏛️ קבינט המוחות של אפי")
 
 st.subheader("👥 הרכב הקבינט הנוכחי")
-if st.button("🔄 רענן הרכב (החלף 4 מתוך 6)"):
-    # פונקציית רענן ששומרת 2 ומחליפה 4 (באקראי)
+if st.button("🔄 רענן הרכב (החלף משתתפים)"):
     refresh_cabinet()
 
-# תצוגת המשתתפים שורה אחר שורה
 for m in st.session_state.current_cabinet:
     st.markdown(f"👤 **{m['שם']}** | {m['תואר']} | התמחות: {m['התמחות']}")
 
 st.markdown("---")
 
-# שלב 1: הזנת נושא
 st.subheader("🖋️ מה הנושא שעל הפרק?")
-idea = st.text_area("פרט את האתגר שלך:", height=100, placeholder="כתוב כאן...")
+idea = st.text_area("פרט את האתגר שלך:", height=100)
 
-def call_gemini(prompt):
-    try:
-        API_KEY = st.secrets["GEMINI_KEY"]
-        url = f"https://generativ
+if st.button("🔍 בנה שאלון אבחון"):
+    if idea:
+        names = [m['שם'] for m in st.session_state.current_cabinet]
+        prompt = f"נושא: {idea}. קבינט: {names}. נסח 4 שאלות אבחון פשוטות בשפה יומיומית. החזר JSON בלבד: [{{'q': 'שאלה', 'options': ['תשובה 1','2','3']}}, ...]"
+        with st.spinner("הקבינט מגבש שאלות..."):
+            res = call_gemini(prompt)
+            st.session_state['qs'] = extract_json(res)
+
+if 'qs' in st.session_state:
+    st.subheader("📝 שאלון אבחון מהיר")
+    ans_list = []
+    for i, item in enumerate(st.session_state['qs']):
+        st.markdown(f"**{i+1}. {item['q']}**")
+        choice = st.radio(f"שאלה {i}", item['options'] + ["אחר"], key=f"r_{i}")
+        ans_list.append(f"ש: {item['q']} | ת: {choice}")
+
+    if st.button("🚀 הפק 5 תובנות אסטרטגיות"):
+        names = [m['שם'] for m in st.session_state.current_cabinet]
+        prompt = f"נושא: {idea}. תשובות: {ans_list}. קבינט: {names}. כתוב 5 תובנות עמוקות ופשוטות. לאחר מכן טבלה: בעיה, פתרון, דרך, תפוקות, תשומות."
+        with st.spinner("הקבינט מנתח..."):
+            st.session_state['result'] = call_gemini(prompt)
+
+if 'result' in st.session_state:
+    st.markdown('<div class="result-box">', unsafe_allow_html=True)
+    st.markdown(st.session_state['result'].replace('\n', '<br>'), unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
