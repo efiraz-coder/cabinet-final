@@ -4,106 +4,136 @@ import json
 import re
 import random
 
-# הגדרות דף
-st.set_page_config(page_title="קבינט המוחות של אפי", layout="wide")
+# ==========================================
+# חלק 1: המנגנון החכם (Adapter)
+# ==========================================
+def call_gemini(prompt_list):
+    """מנהל את התקשורת מול ה-API ומטפל בשגיאות 404"""
+    if "GEMINI_KEY" not in st.secrets:
+        st.error("Missing GEMINI_KEY")
+        return None
+    
+    genai.configure(api_key=st.secrets["GEMINI_KEY"])
+    # שימוש במודל שראינו שזמין אצלך
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    
+    try:
+        response = model.generate_content(prompt_list)
+        return response.text
+    except Exception as e:
+        st.error(f"API Error: {e}")
+        return None
 
-# ניקוי ממשק
+# ==========================================
+# חלק 2: "החוכמה" (Logic & Psychology)
+# ==========================================
+POOL = {
+    "פילוסופיה": ["סוקרטס", "חנה ארנדט", "מרקוס אורליוס", "ניטשה", "סארטר"],
+    "פסיכולוגיה": ["פרויד", "יונג", "ויקטור פראנקל", "דניאל כהנמן", "מאסלו"],
+    "תרבות": ["מקלוהן", "אדוארד סעיד", "יובל נח הררי", "ניל פוסטמן"],
+    "הפתעה": ["סטיב ג'ובס", "דה וינצ'י", "סון דזו", "איינשטיין"]
+}
+
+def get_init_cabinet():
+    cab = []
+    for cat in POOL:
+        for name in random.sample(POOL[cat], 2):
+            cab.append({"name": name, "cat": cat})
+    return cab
+
+# ==========================================
+# חלק 3: העיצוב והממשק (UI/UX)
+# ==========================================
+st.set_page_config(page_title="קבינט אפי", layout="wide")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&display=swap');
     html, body, [class*="st-"] { font-family: 'Assistant', sans-serif; direction: rtl; text-align: right; }
-    .stButton>button { width: 100%; border-radius: 10px; font-weight: bold; background-color: #f0f2f6; }
-    .expert-box { background-color: #ffffff; padding: 10px; border: 1px solid #e5e7eb; border-radius: 10px; text-align: center; color: #000; }
+    .stButton>button { width: 100%; border-radius: 10px; font-weight: bold; }
+    .expert-box { background: #ffffff; padding: 12px; border: 1px solid #e5e7eb; border-radius: 10px; text-align: center; }
+    .chat-bubble { background: #e9ecef; padding: 15px; border-radius: 15px; margin-bottom: 10px; border-right: 5px solid #3b82f6; color: #000; }
     </style>
-    """, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
-# פונקציה למציאת המודל הראשון שבאמת עובד אצלך
-def get_working_model():
-    if "GEMINI_KEY" not in st.secrets:
-        st.error("Missing API Key")
-        return None
+# ניהול מצבי אפליקציה
+if 'step' not in st.session_state: st.session_state.step = 'setup'
+if 'cabinet' not in st.session_state: st.session_state.cabinet = get_init_cabinet()
+if 'history' not in st.session_state: st.session_state.history = []
+
+# --- שלב 0: הגדרת הקבינט ---
+if st.session_state.step == 'setup':
+    st.title("🏛️ קבינט המוחות של אפי")
+    st.write("חברי הקבינט שנבחרו עבורך:")
+    cols = st.columns(4)
+    for i, m in enumerate(st.session_state.cabinet):
+        with cols[i % 4]: st.markdown(f"<div class='expert-box'><b>{m['name']}</b><br><small>{m['cat']}</small></div>", unsafe_allow_html=True)
     
-    genai.configure(api_key=st.secrets["GEMINI_KEY"])
-    try:
-        # סריקת כל המודלים שזמינים למפתח שלך
-        available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        if not available:
-            return None
-        # עדיפות למודלים המהירים
-        for pref in ['models/gemini-1.5-flash', 'models/gemini-1.5-pro', 'models/gemini-pro']:
-            if pref in available:
-                return pref
-        return available[0]
-    except Exception as e:
-        st.error(f"Error scanning models: {e}")
-        return None
+    if st.button("🔄 רענן קבינט"):
+        st.session_state.cabinet = get_init_cabinet()
+        st.rerun()
+        
+    idea = st.text_area("🖋️ מה על ליבך היום?", height=100)
+    if st.button("🔍 התחל אבחון"):
+        if idea:
+            st.session_state.user_idea = idea
+            names = ", ".join([m['name'] for m in st.session_state.cabinet])
+            prompt = f"נושא: {idea}. מומחים: {names}. נסח 6 שאלות אבחון עמוקות ואנושיות ב-JSON: " + '[{"q": "...", "options": ["...", "...", "..."]}]'
+            res = call_gemini(prompt)
+            if res:
+                match = re.search(r'\[.*\]', res, re.DOTALL)
+                if match:
+                    st.session_state.questions = json.loads(match.group())
+                    st.session_state.step = 'diagnostic'
+                    st.rerun()
 
-# אתחול קבינט (8 חברים: 2 מכל סוג)
-if 'cabinet' not in st.session_state:
-    pool = {
-        "פילוסופיה": ["סוקרטס", "אריסטו", "חנה ארנדט", "ניטשה", "מרקוס אורליוס"],
-        "פסיכולוגיה": ["פרויד", "יונג", "ויקטור פראנקל", "כהנמן", "מאסלו"],
-        "תרבות": ["מקלוהן", "אדוארד סעיד", "הררי", "פוסטמן", "מרגרט מיד"],
-        "הפתעה": ["דה וינצ'י", "סטיב ג'ובס", "סון דזו", "איינשטיין", "שייקספיר"]
-    }
-    cab = []
-    for cat, names in pool.items():
-        selected = random.sample(names, 2)
-        for n in selected:
-            cab.append({"name": n, "cat": cat})
-    st.session_state.cabinet = cab
-
-# ממשק
-st.title("🏛️ קבינט המוחות של אפי")
-
-# הצגת המומחים
-cols = st.columns(4)
-for i, m in enumerate(st.session_state.cabinet):
-    with cols[i % 4]:
-        st.markdown(f"<div class='expert-box'><b>{m['name']}</b><br>{m['cat']}</div>", unsafe_allow_html=True)
-
-if st.button("🔄 רענן הרכב (החלפת 4 מומחים)"):
-    # מחליף אחד מכל קטגוריה
-    for i in [0, 2, 4, 6]:
-        cat = st.session_state.cabinet[i]['cat']
-        st.session_state.cabinet[i]['name'] = random.choice(pool[cat])
-    st.rerun()
-
-st.write("---")
-idea = st.text_area("🖋️ מה על ליבך היום?", height=100)
-
-if st.button("🔍 התחל אבחון"):
-    if idea:
-        with st.spinner("הקבינט מתחבר..."):
-            model_name = get_working_model()
-            if not model_name:
-                st.error("לא נמצא מודל פעיל. בדוק את המפתח ב-AI Studio.")
-            else:
-                model = genai.GenerativeModel(model_name)
-                prompt = f"נושא: {idea}. נסח 6 שאלות אנושיות על רגשות ומחשבות. החזר רק JSON תקין: " + '[{"q": "...", "options": ["1", "2", "3"]}]'
-                try:
-                    res = model.generate_content(prompt)
-                    match = re.search(r'\[.*\]', res.text, re.DOTALL)
-                    if match:
-                        st.session_state.qs = json.loads(match.group())
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"שגיאה בהפעלת {model_name}: {e}")
-
-if 'qs' in st.session_state:
-    st.write("### 📝 שלב ההקשבה")
-    ans_data = []
-    for i, item in enumerate(st.session_state.qs):
+# --- שלב 1: אבחון (שאלון) ---
+elif st.session_state.step == 'diagnostic':
+    st.title("📝 הקשבה עצמית")
+    ans_list = []
+    for i, item in enumerate(st.session_state.questions):
         st.write(f"**{item['q']}**")
-        sel = st.radio("בחר תשובה:", item['options'], key=f"r_{i}", label_visibility="collapsed")
-        ans_data.append(f"Q: {item['q']} | A: {sel}")
+        ans = st.radio("בחר תשובה:", item['options'], key=f"q_{i}", label_visibility="collapsed")
+        ans_list.append(f"שאלה: {item['q']} | תשובה: {ans}")
     
-    if st.button("🚀 הפק תובנות"):
-        model_name = get_working_model()
-        model = genai.GenerativeModel(model_name)
-        report = model.generate_content(f"נושא: {idea}. תשובות: {ans_data}. סכם ב-5 תובנות רכות.")
-        st.session_state.report = report.text
+    if st.button("🚀 שלח תשובות לקבינט"):
+        st.session_state.history.append({"role": "user", "parts": [f"הנושא שלי: {st.session_state.user_idea}. התשובות שלי לאבחון: {ans_list}"]})
+        st.session_state.step = 'dialogue'
+        st.rerun()
 
-if 'report' in st.session_state:
-    st.success("📊 תובנות הקבינט:")
-    st.markdown(st.session_state.report)
+# --- שלב 2: הדיאלוג המתפתח (הצ'אט) ---
+elif st.session_state.step == 'dialogue':
+    st.title("💬 דיאלוג עם הקבינט")
+    
+    # הצגת היסטוריית הדיאלוג
+    for msg in st.session_state.history:
+        if msg['role'] == 'model':
+            st.markdown(f"<div class='chat-bubble'>{msg['parts'][0]}</div>", unsafe_allow_html=True)
+        elif msg['role'] == 'user' and 'הנושא שלי' not in msg['parts'][0]:
+            st.write(f"👉 **אתה:** {msg['parts'][0]}")
+
+    # קריאה לקבינט רק אם ההודעה האחרונה היא של המשתמש
+    if st.session_state.history[-1]['role'] == 'user':
+        with st.spinner("הקבינט דן בדבריך..."):
+            names = ", ".join([m['name'] for m in st.session_state.cabinet])
+            system_instruction = f"אתה קבינט חכם ({names}). נתח את דברי המשתמש, שקף דפוסי חשיבה, תן תובנה עמוקה וסיים בשאלה מעוררת מחשבה. אל תציין שמות מומחים."
+            
+            # בניית השיחה המלאה
+            full_context = [{"role": "user", "parts": [system_instruction]}] + st.session_state.history
+            response = call_gemini(full_context)
+            if response:
+                st.session_state.history.append({"role": "model", "parts": [response]})
+                st.rerun()
+
+    # תיבת תגובה לשואל
+    with st.container():
+        user_input = st.chat_input("השב לקבינט...")
+        if user_input:
+            st.session_state.history.append({"role": "user", "parts": [user_input]})
+            st.rerun()
+
+    if st.button("🏁 סיכום ומפת דרכים"):
+        final_prompt = st.session_state.history + [{"role": "user", "parts": ["סכם את הדיאלוג ב-5 תובנות עומק ו-3 דרכי פעולה מעשיות."]}]
+        summary = call_gemini(final_prompt)
+        st.markdown("---")
+        st.success("📊 מפת הדרכים שלך:")
+        st.write(summary)
