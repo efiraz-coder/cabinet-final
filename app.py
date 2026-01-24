@@ -4,80 +4,98 @@ import json
 import re
 import random
 
-# הגדרות דף - עיצוב נקי וסידור מימין לשמאל
-st.set_page_config(page_title="קבינט המוחות של אפי", layout="wide")
+# הגדרות בסיסיות
+st.set_page_config(page_title="קבינט אפי", layout="wide")
 
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&display=swap');
     html, body, [class*="st-"] { font-family: 'Assistant', sans-serif; direction: rtl; text-align: right; }
-    .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; font-weight: bold; background-color: #f0f2f6; border: 1px solid #d1d5db; color: #1f2937; }
-    .expert-box { background-color: #ffffff; padding: 12px; border: 1px solid #e5e7eb; border-radius: 10px; text-align: center; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); color: #1f2937; }
-    .question-card { background-color: #f9fafb; padding: 20px; border-radius: 12px; margin-top: 20px; border-right: 5px solid #3b82f6; color: #1f2937; }
-    .stRadio > label { font-size: 1.1em; font-weight: 600; color: #374151; }
+    .stButton>button { width: 100%; border-radius: 10px; font-weight: bold; background-color: #f0f2f6; }
+    .expert-box { background-color: #ffffff; padding: 10px; border: 1px solid #e5e7eb; border-radius: 10px; text-align: center; color: #000; }
+    .question-card { background-color: #f9fafb; padding: 15px; border-radius: 10px; border-right: 5px solid #3b82f6; color: #000; margin-top: 15px; }
     </style>
     """, unsafe_allow_html=True)
 
-# בדיקת מפתח API ב-Secrets
+# חיבור ל-API
 if "GEMINI_KEY" not in st.secrets:
-    st.error("שגיאה: המפתח GEMINI_KEY לא מוגדר ב-Secrets של Streamlit.")
+    st.error("Missing GEMINI_KEY in Secrets")
     st.stop()
 
-# אתחול המודל
 genai.configure(api_key=st.secrets["GEMINI_KEY"])
 MODEL_NAME = "gemini-1.5-flash"
 
-# מאגר המומחים לפי קטגוריות (2 מכל סוג כפי שביקשת)
+# מאגר מומחים
 POOL = {
-    "פילוסופיה": ["סוקרטס", "אריסטו", "חנה ארנדט", "פרידריך ניטשה", "מרקוס אורליוס", "סימון דה בובואר", "עמנואל קאנט", "ז'אן-פול סארטר"],
-    "פסיכולוגיה": ["זיגמונד פרויד", "קארל יונג", "ויקטור פראנקל", "מלאני קליין", "דניאל כהנמן", "אברהם מאסלו", "קארל רוג'רס", "אריך פרום"],
-    "תרבות": ["מרשל מקלוהן", "אדוארד סעיד", "רולאן בארת", "ניל פוסטמן", "יובל נח הררי", "מרגרט מיד", "מישל פוקו", "קלוד לוי-שטראוס"],
-    "הפתעה": ["לאונרדו דה וינצ'י", "סטיב ג'ובס", "סון דזו", "אלברט איינשטיין", "מארי קירי", "שייקספיר", "קוקו שאנל", "צ'רלי צ'פלין"]
+    "פילוסופיה": ["סוקרטס", "אריסטו", "חנה ארנדט", "ניטשה", "מרקוס אורליוס", "קאנט"],
+    "פסיכולוגיה": ["פרויד", "יונג", "ויקטור פראנקל", "כהנמן", "מאסלו", "אריך פרום"],
+    "תרבות": ["מקלוהן", "אדוארד סעיד", "פוסטמן", "הררי", "מרגרט מיד", "פוקו"],
+    "הפתעה": ["דה וינצ'י", "סטיב ג'ובס", "סון דזו", "איינשטיין", "שייקספיר", "קוקו שאנל"]
 }
 
-def generate_full_cabinet():
-    cabinet = []
+def get_cabinet():
+    res = []
     for cat in ["פילוסופיה", "פסיכולוגיה", "תרבות", "הפתעה"]:
-        names = random.sample(POOL[cat], 2)
-        for name in names:
-            cabinet.append({"name": name, "cat": cat})
-    return cabinet
+        for name in random.sample(POOL[cat], 2):
+            res.append({"name": name, "cat": cat})
+    return res
 
-# ניהול המצב ב-Session
 if 'cabinet' not in st.session_state:
-    st.session_state.cabinet = generate_full_cabinet()
+    st.session_state.cabinet = get_cabinet()
 
-# --- ממשק משתמש ---
+# תצוגה
 st.title("🏛️ קבינט המוחות של אפי")
-st.write("חברי הקבינט שנבחרו עבורך למשימה זו (8 מומחים):")
+st.write("חברי הקבינט הנוכחיים (8 מומחים):")
 
-# הצגת הקבינט בטבלה/עמודות
 cols = st.columns(4)
-for i, member in enumerate(st.session_state.cabinet):
+for i, m in enumerate(st.session_state.cabinet):
     with cols[i % 4]:
-        st.markdown(f"<div class='expert-box'><b>{member['name']}</b><br><small>{member['cat']}</small></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='expert-box'><b>{m['name']}</b><br>{m['cat']}</div>", unsafe_allow_html=True)
 
-# כפתור רענון - מחליף 4 חברים אקראיים (אחד מכל קטגוריה)
-if st.button("🔄 רענן את הרכב הקבינט"):
-    current = st.session_state.cabinet
-    new_cabinet = []
-    for cat in ["פילוסופיה", "פסיכולוגיה", "תרבות", "הפתעה"]:
-        # בוחרים 2 חדשים לגמרי לכל קטגוריה כדי להבטיח שינוי
-        names = random.sample(POOL[cat], 2)
-        for name in names:
-            new_cabinet.append({"name": name, "cat": cat})
-    st.session_state.cabinet = new_cabinet
-    # איפוס תוצאות קודמות ברענון
-    for key in ['questions', 'final_report']:
-        if key in st.session_state:
-            del st.session_state[key]
+if st.button("🔄 רענן הרכב קבינט"):
+    st.session_state.cabinet = get_cabinet()
+    for k in ['qs', 'report']: 
+        if k in st.session_state: del st.session_state[k]
     st.rerun()
 
 st.write("---")
-idea = st.text_area("🖋️ תאר את המחשבה, הרגשה או דילמה שמעסיקה אותך:", height=120, placeholder="מה יושב לך על הלב היום?")
+idea = st.text_area("🖋️ מה מעסיק אותך?", height=100)
 
-if st.button("🔍 התחל תהליך אבחון עמוק"):
-    if not idea:
-        st.warning("אנא כתוב משהו כדי שהקבינט יוכל להתייחס.")
-    else:
-        with st.spinner("ח
+if st.button("🔍 התחל אבחון"):
+    if idea:
+        with st.spinner("מנסח שאלות..."):
+            names = ", ".join([m['name'] for m in st.session_state.cabinet])
+            prompt = f"נושא: {idea}. מומחים: {names}. נסח 6 שאלות אנושיות על רגשות ודפוסי חשיבה. בלי שמות מומחים. החזר רק JSON: " + '[{"q": "...", "options": ["1", "2", "3"]}]'
+            try:
+                model = genai.GenerativeModel(MODEL_NAME)
+                resp = model.generate_content(prompt)
+                match = re.search(r'\[.*\]', resp.text, re.DOTALL)
+                if match:
+                    st.session_state.qs = json.loads(match.group())
+                    if 'report' in st.session_state: del st.session_state['report']
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+if 'qs' in st.session_state:
+    st.write("### 📝 שלב ההקשבה")
+    ans_data = []
+    for i, item in enumerate(st.session_state.qs):
+        st.markdown(f"<div class='question-card'>{item['q']}</div>", unsafe_allow_html=True)
+        sel = st.radio("בחר תשובה:", item['options'], key=f"r_{i}", label_visibility="collapsed")
+        ans_data.append(f"Q: {item['q']} | A: {sel}")
+    
+    if st.button("🚀 הפק תובנות"):
+        with st.spinner("מנתח..."):
+            p2 = f"נושא: {idea}. תשובות: {ans_data}. כתוב 5 תובנות עומק פסיכולוגיות בשפה רכה."
+            try:
+                model = genai.GenerativeModel(MODEL_NAME)
+                res = model.generate_content(p2)
+                st.session_state.report = res.text
+            except:
+                st.error("שגיאה בהפקה")
+
+if 'report' in st.session_state:
+    st.write("---")
+    st.success("📊 תובנות הקבינט:")
+    st.markdown(st.session_state.report)
