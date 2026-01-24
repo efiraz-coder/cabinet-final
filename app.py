@@ -4,10 +4,10 @@ import json
 import re
 import random
 
-# --- 1. מנגנון API חכם וסורק מודלים ---
+# --- 1. API ---
 def get_working_model():
     if "GEMINI_KEY" not in st.secrets:
-        st.error("Missing GEMINI_KEY in Secrets")
+        st.error("Missing GEMINI_KEY")
         return None
     genai.configure(api_key=st.secrets["GEMINI_KEY"])
     try:
@@ -15,103 +15,107 @@ def get_working_model():
         for pref in ['models/gemini-1.5-flash', 'models/gemini-1.5-pro']:
             if pref in available: return pref
         return available[0] if available else None
-    except:
-        return None
+    except: return None
 
-# --- 2. עיצוב המרחב הטיפולי ---
+# --- 2. עיצוב חסין ---
 st.set_page_config(page_title="קבינט המוחות", layout="wide")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&display=swap');
     html, body, [class*="st-"] { font-family: 'Assistant', sans-serif; direction: rtl; text-align: right; }
-    .expert-box { background-color: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 12px; text-align: center; color: #1f2937 !important; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .chat-bubble { background: #f8fafc; padding: 25px; border-radius: 15px; border-right: 6px solid #3b82f6; color: #1e293b; margin-bottom: 20px; line-height: 1.6; font-size: 1.1em; }
-    .stCheckbox label { font-size: 1.1em; font-weight: 500; }
+    .expert-box { 
+        background-color: #f1f5f9; 
+        padding: 15px; 
+        border: 1px solid #cbd5e1; 
+        border-radius: 12px; 
+        text-align: center; 
+        color: #0f172a !important; 
+        font-weight: bold;
+    }
+    .chat-bubble { 
+        background: #ffffff; 
+        padding: 25px; 
+        border-radius: 15px; 
+        border-right: 6px solid #3b82f6; 
+        color: #1e293b; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin-bottom: 20px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. ניהול מצב והרכב הקבינט ---
+# --- 3. ניהול המצב ---
 if 'step' not in st.session_state: st.session_state.step = 'setup'
 if 'history' not in st.session_state: st.session_state.history = []
 
 if 'cabinet' not in st.session_state:
-    pool = {
-        "פילוסופיה": ["סוקרטס", "אריסטו", "חנה ארנדט", "מרקוס אורליוס", "ניטשה"],
-        "פסיכולוגיה": ["פרויד", "יונג", "ויקטור פראנקל", "דניאל כהנמן", "מאסלו"],
-        "תרבות": ["מקלוהן", "אדוארד סעיד", "יובל נח הררי", "ניל פוסטמן"],
-        "הפתעה": ["לאונרדו דה וינצ'י", "סטיב ג'ובס", "סון דזו", "איינשטיין", "מרים פרץ"]
-    }
-    cab = []
-    for cat in pool:
-        for name in random.sample(pool[cat], 2): cab.append({"name": name, "cat": cat})
-    st.session_state.cabinet = cab
+    pool = {"פילוסופיה": ["סוקרטס", "מרקוס אורליוס"], "פסיכולוגיה": ["ויקטור פראנקל", "יונג"], 
+            "תרבות": ["מקלוהן", "הררי"], "הפתעה": ["סטיב ג'ובס", "דה וינצ'י"]}
+    st.session_state.cabinet = [{"name": n, "cat": c} for c, names in pool.items() for n in names]
 
-# --- שלב 0: הגדרת האתגר והמיפוי ---
+# --- שלב 0: הגדרה ---
 if st.session_state.step == 'setup':
     st.title("🏛️ קבינט המוחות")
-    st.subheader("המומחים שנבחרו עבורך הפעם:")
     cols = st.columns(4)
     for i, m in enumerate(st.session_state.cabinet):
-        with cols[i % 4]:
-            st.markdown(f"<div class='expert-box'><b>{m['name']}</b><br><small>{m['cat']}</small></div>", unsafe_allow_html=True)
+        with cols[i % 4]: st.markdown(f"<div class='expert-box'>{m['name']}<br><small>{m['cat']}</small></div>", unsafe_allow_html=True)
     
     st.write("---")
-    idea = st.text_area("🖋️ תאר את האתגר או המצב שלך:", height=100, placeholder="למשל: 'חבר לא מגיע בזמן לפגישות' או 'אובדן חברה קרובה'...")
+    idea = st.text_area("🖋️ מה על ליבך?", height=100)
     
-    st.write("🔍 **מיפוי הערפל:** באילו תחומים תרצה שהקבינט יתמקד?")
+    st.write("🔍 **מיפוי הערפל:**")
     c1, c2 = st.columns(2)
     with c1:
         regesh = st.checkbox("עולם הרגש והשקט הפנימי")
-        work = st.checkbox("תפקוד יומיומי, קריירה וביצועים")
+        work = st.checkbox("תפקוד יומיומי וביצועים")
     with c2:
-        meaning = st.checkbox("משמעות, ערכים ותפיסת עתיד")
-        social = st.checkbox("מערכות יחסים, גבולות ותקשורת")
+        meaning = st.checkbox("משמעות ותפיסת עתיד")
+        social = st.checkbox("מערכות יחסים וגבולות")
     
-    personal_q = st.text_input("🎯 שאלה ספציפית שבוערת בך?")
+    personal_q = st.text_input("🎯 שאלה ספציפית לקבינט?")
 
     if st.button("🔍 בואו נתחיל"):
         model_name = get_working_model()
         if model_name and idea:
             st.session_state.working_model = model_name
             st.session_state.user_idea = idea
-            doms = [d for d, v in zip(["רגש", "תפקוד", "משמעות", "חברה"], [regesh, work, meaning, social]) if v]
-            with st.spinner("הקבינט לומד את ההקשר ומגבש שאלות..."):
+            doms = [d for d, v in zip(["Emotional", "Functional", "Meaning", "Social"], [regesh, work, meaning, social]) if v]
+            with st.spinner("הקבינט מגבש שאלות..."):
                 model = genai.GenerativeModel(model_name)
-                # פרומפט הנחיה קשיח למניעת קלישאות ובלבול סמנטי
-                prompt = f"""
-                Topic: {idea}. Selected Focus: {doms}. User's Direct Question: {personal_q}. 
-                Experts: {[m['name'] for m in st.session_state.cabinet]}.
-                Task: Generate 5 deep, empathetic diagnostic questions in HEBREW. 
-                1. Identify the semantic context (personal loss vs professional vs social). 
-                2. Be specific, NOT generic. 
-                Return ONLY JSON: [{"q": "...", "options": ["...", "...", "..."]}]
-                """
-                res = model.generate_content(prompt)
-                match = re.search(r'\[.*\]', res.text, re.DOTALL)
-                if match:
-                    st.session_state.questions = json.loads(match.group())
+                # שימוש במשתנה נפרד למניעת שגיאת ה-f-string
+                json_format = '[{"q": "שאלת אבחון", "options": ["אפשרות 1", "אפשרות 2", "אפשרות 3"]}]'
+                prompt = (
+                    f"Topic: {idea}. Focus: {doms}. Personal Question: {personal_q}. "
+                    f"Instructions: Generate 5 deep diagnostic questions in Hebrew. "
+                    f"Return ONLY a valid JSON list in this format: {json_format}"
+                )
+                try:
+                    res = model.generate_content(prompt)
+                    # ניקוי הטקסט כדי למצוא רק את ה-JSON
+                    json_text = re.search(r'\[.*\]', res.text, re.DOTALL).group()
+                    st.session_state.questions = json.loads(json_text)
                     st.session_state.step = 'diagnostic'
                     st.rerun()
+                except Exception as e:
+                    st.error("הקבינט זקוק לניסוח מחדש. אנא לחץ שוב על הכפתור.")
 
-# --- שלב 1: שלב האבחון (ההקשבה) ---
+# --- שלב 1: אבחון ---
 elif st.session_state.step == 'diagnostic':
     st.title("📝 שלב ההקשבה")
-    st.write("כדי שנוכל לדייק, ענה על השאלות הבאות:")
     ans_list = []
     for i, item in enumerate(st.session_state.questions):
         st.write(f"**{item['q']}**")
-        ans = st.radio("בחר תשובה:", item['options'], key=f"ans_{i}", label_visibility="collapsed")
-        ans_list.append(f"שאלה: {item['q']} | תשובה: {ans}")
+        ans = st.radio("בחר תשובה:", item['options'], key=f"ans_{i}")
+        ans_list.append(f"Q: {item['q']} | A: {ans}")
     
-    if st.button("🚀 שלח תשובות וקבל תובנות מהקבינט"):
-        st.session_state.history.append({"role": "user", "parts": [f"המקרה: {st.session_state.user_idea}. תשובות לאבחון: {ans_list}"]})
+    if st.button("🚀 שלח תשובות"):
+        st.session_state.history.append({"role": "user", "parts": [f"המקרה: {st.session_state.user_idea}. תשובותיי: {ans_list}"]})
         st.session_state.step = 'dialogue'
         st.rerun()
 
-# --- שלב 2: הדיאלוג והתובנות ---
+# --- שלב 2: דיאלוג ---
 elif st.session_state.step == 'dialogue':
-    st.title("💬 הדיאלוג עם הקבינט")
-    
+    st.title("💬 דיאלוג עם הקבינט")
     for msg in st.session_state.history:
         if msg['role'] == 'model':
             st.markdown(f"<div class='chat-bubble'>{msg['parts'][0]}</div>", unsafe_allow_html=True)
@@ -119,35 +123,18 @@ elif st.session_state.step == 'dialogue':
             st.info(f"👉 **אתה:** {msg['parts'][0]}")
 
     if st.session_state.history[-1]['role'] == 'user':
-        with st.spinner("הקבינט מעבד את הנתונים..."):
+        with st.spinner("הקבינט חושב..."):
             names = ", ".join([m['name'] for m in st.session_state.cabinet])
-            # הנחיית ה"וואו" - אמפתיה, סדר, ללא קלישאות
-            instr = f"""
-            You are a council of experts: {names}. 
-            The user is looking for "Seder Ba-Rosh" (clarity). 
-            Response Structure in HEBREW:
-            1. Reflection (1-2 sentences): Empathy and identifying the core struggle.
-            2. Three Pillars of Clarity (numbered): Deep insights without cliches.
-            3. The Compass Question: One focused question to move forward.
-            Be personal, NOT generic. If the context is personal loss, be tender. If it's a conflict, be strategic.
-            """
+            instr = (
+                f"You are a council: {names}. Be personal, empathetic, and sharp. No cliches. "
+                "Structure in Hebrew: 1. Reflection. 2. Three Pillars of Clarity. 3. One Compass Question."
+            )
             model = genai.GenerativeModel(st.session_state.working_model)
-            full_msg = [{"role": "user", "parts": [instr]}] + st.session_state.history
-            res = model.generate_content(full_msg)
+            res = model.generate_content([{"role": "user", "parts": [instr]}] + st.session_state.history)
             st.session_state.history.append({"role": "model", "parts": [res.text]})
             st.rerun()
 
-    user_reply = st.chat_input("המשך את הדיאלוג או שאל שאלה נוספת...")
+    user_reply = st.chat_input("השב לקבינט...")
     if user_reply:
         st.session_state.history.append({"role": "user", "parts": [user_reply]})
         st.rerun()
-
-    if st.button("🏁 סיכום ומפת דרכים סופית"):
-        model = genai.GenerativeModel(st.session_state.working_model)
-        sum_res = model.generate_content(st.session_state.history + [{"role": "user", "parts": ["סכם את כל הדיאלוג ב-5 תובנות זהב ו-2 צעדים מעשיים למחר בבוקר. בלי קלישאות."]}] )
-        st.markdown("---")
-        st.success("📊 מפת הדרכים שלך:")
-        st.write(sum_res.text)
-        if st.button("🔄 התחל מחדש"):
-            st.session_state.clear()
-            st.rerun()
