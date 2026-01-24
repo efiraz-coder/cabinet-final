@@ -4,102 +4,70 @@ import json
 import re
 import random
 
-# הגדרות דף
 st.set_page_config(page_title="קבינט המוחות של אפי", layout="wide")
 
+# --- פונקציית API חכמה שמנסה כמה מודלים ---
+def call_cabinet_api(prompt):
+    if "GEMINI_KEY" not in st.secrets:
+        st.error("⚠️ המפתח חסר ב-Secrets!")
+        return None
+    
+    api_key = st.secrets["GEMINI_KEY"]
+    # רשימת מודלים אפשריים לפי סדר עדיפות
+    models_to_try = [
+        "gemini-1.5-pro",
+        "gemini-1.5-flash",
+        "gemini-pro"
+    ]
+    
+    last_error = ""
+    for model_name in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        try:
+            res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=10)
+            if res.status_code == 200:
+                return res.json()['candidates'][0]['content']['parts'][0]['text']
+            else:
+                last_error = res.text
+                continue # נכשל? נסה את המודל הבא
+        except:
+            continue
+            
+    st.error(f"כל המודלים נכשלו. שגיאה אחרונה: {last_error}")
+    return None
+
+# --- עיצוב וממשק ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&display=swap');
     html, body, [class*="st-"] { font-family: 'Assistant', sans-serif; direction: rtl; text-align: right; }
-    .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; font-weight: bold; background-color: #bbdefb; border: 2px solid #1976d2; color: #000; }
-    .expert-card { background-color: #ffffff; padding: 15px; border-right: 5px solid #1976d2; border-radius: 8px; margin-bottom: 15px; box-shadow: 1px 1px 5px rgba(0,0,0,0.1); color: #000; }
+    .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; font-weight: bold; background-color: #bbdefb; border: 2px solid #1976d2; }
     </style>
     """, unsafe_allow_html=True)
 
-def call_cabinet_api(prompt):
-    if "GEMINI_KEY" not in st.secrets:
-        st.error("⚠️ המפתח GEMINI_KEY לא נמצא ב-Secrets!")
-        return None
-    
-    api_key = st.secrets["GEMINI_KEY"]
-    
-    # השם המדויק והמעודכן ביותר של המודל לפי גוגל
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={api_key}"
-    
-    headers = {'Content-Type': 'application/json'}
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
-    
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=30)
-        if response.status_code == 200:
-            return response.json()['candidates'][0]['content']['parts'][0]['text']
-        else:
-            # אם יש שגיאה, נראה בדיוק מה היא
-            st.error(f"שגיאת שרת ({response.status_code}): {response.text}")
-            return None
-    except Exception as e:
-        st.error(f"תקלה בתקשורת: {str(e)}")
-        return None
-
-# אתחול קבינט
 if 'cabinet' not in st.session_state:
-    pool = [
-        {"שם": "פיטר דרוקר", "תואר": "אבי הניהול"},
-        {"שם": "סטיב ג'ובס", "תואר": "יזם"},
-        {"שם": "סון דזו", "תואר": "אסטרטג סיני"},
-        {"שם": "זיגמונד פרויד", "תואר": "פסיכולוג"},
-        {"שם": "דניאל כהנמן", "תואר": "כלכלן"},
-        {"שם": "מרקוס אורליוס", "תואר": "קיסר רומי"}
-    ]
-    st.session_state.cabinet = random.sample(pool, 6)
+    pool = [{"שם": "פיטר דרוקר", "תואר": "אסטרטגיה"}, {"שם": "סטיב ג'ובס", "תואר": "יזמות"}, {"שם": "סון דזו", "תואר": "טקטיקה"}]
+    st.session_state.cabinet = pool
 
 st.title("🏛️ קבינט המוחות של אפי")
 
-cols = st.columns(3)
-for i, m in enumerate(st.session_state.cabinet):
-    with cols[i % 3]:
-        st.info(f"👤 **{m['שם']}**\n\n{m['תואר']}")
-
 idea = st.text_area("🖋️ מה האתגר שלך?", height=120)
 
-if st.button("🔍 שלח לאבחון המומחים"):
+if st.button("🔍 התחל אבחון"):
     if idea:
-        with st.spinner("חברי הקבינט דנים בבעיה..."):
-            experts_list = ", ".join([m['שם'] for m in st.session_state.cabinet])
-            
-            prompt = f"""
-            Task: Act as a board of experts for: "{idea}".
-            Experts: {experts_list}.
-            Output: Return ONLY a valid JSON array.
-            Format: [{{ "expert": "Name", "q": "Question", "options": ["1", "2", "3"] }}]
-            Language: Hebrew.
-            """
-            
+        with st.spinner("הקבינט בודק תקשורת ומנסח שאלות..."):
+            prompt = f"נושא: {idea}. נסח 3 שאלות אבחון בפורמט JSON בלבד: [{{'expert': '...', 'q': '...', 'options': ['1','2','3']}}]"
             raw = call_cabinet_api(prompt)
             if raw:
-                # ניקוי פורמט JSON מהתשובה
-                clean_raw = raw.replace('```json', '').replace('```', '').strip()
-                match = re.search(r'\[.*\]', clean_raw, re.DOTALL)
+                match = re.search(r'\[.*\]', raw.replace('```json', '').replace('```', ''), re.DOTALL)
                 if match:
                     st.session_state.qs = json.loads(match.group())
-                    st.session_state.pop('final_result', None)
                     st.rerun()
-                else:
-                    st.error("הקבינט שלח תשובה לא תקינה. נסה שוב.")
 
 if 'qs' in st.session_state:
-    st.markdown("---")
-    user_answers = []
     for i, item in enumerate(st.session_state.qs):
-        st.markdown(f"<div class='expert-card'>💡 <b>{item['expert']}</b> שואל/ת:</div>", unsafe_allow_html=True)
-        choice = st.radio(item['q'], item['options'], key=f"ans_{i}")
-        user_answers.append(f"{item['expert']}: {choice}")
+        st.write(f"💡 **{item['expert']}** שואל:")
+        st.radio(item['q'], item['options'], key=f"q_{i}")
     
-    if st.button("🚀 הפק דו\"ח תובנות"):
-        with st.spinner("הקבינט מסכם..."):
-            final_p = f"האתגר: {idea}. תשובות: {user_answers}. סכם ב-5 תובנות וטבלה."
-            st.session_state.final_result = call_cabinet_api(final_p)
-
-if 'final_result' in st.session_state:
-    st.success("📊 המלצות הקבינט:")
-    st.markdown(st.session_state.final_result)
+    if st.button("🚀 הפק דו\"ח"):
+        st.write("מכין דו\"ח...")
