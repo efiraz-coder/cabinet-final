@@ -4,117 +4,107 @@ import json
 import re
 import random
 
-# --- 1. API Setup ---
-def get_working_model():
+# --- 1. מנוע AI ---
+def get_model():
     if "GEMINI_KEY" not in st.secrets:
-        st.error("Missing GEMINI_KEY in secrets")
+        st.error("Missing GEMINI_KEY in secrets!")
         return None
     genai.configure(api_key=st.secrets["GEMINI_KEY"])
-    return 'models/gemini-1.5-flash'
+    return genai.GenerativeModel('models/gemini-1.5-flash')
 
-# --- 2. UI Styling ---
+# --- 2. עיצוב (CSS) - הבטחת קריאות מקסימלית ---
 st.set_page_config(page_title="קבינט המוחות", layout="wide")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&display=swap');
-    html, body, [class*="st-"] { 
-        font-family: 'Assistant', sans-serif; 
-        direction: rtl; 
-        text-align: right; 
-        background-color: #0f172a; 
+    html, body, [class*="st-"] { font-family: 'Assistant', sans-serif; direction: rtl; text-align: right; }
+    
+    /* פתרון בעיית הניגודיות - טקסט שחור בתיבות לבנות */
+    .stTextArea textarea { 
+        color: #000000 !important; 
+        background-color: #ffffff !important; 
+        border: 2px solid #3b82f6 !important;
     }
-    .expert-box { 
-        background-color: #ffffff; padding: 10px; border: 2px solid #3b82f6; 
-        border-radius: 8px; text-align: center; color: #1e293b !important; font-weight: bold;
+    
+    /* שיפור נראות בועות הצ'אט */
+    .stChatMessage { background-color: rgba(255, 255, 255, 0.05); border-radius: 10px; margin-bottom: 10px; }
+    
+    .expert-card { 
+        background-color: #ffffff; padding: 10px; border-radius: 8px; 
+        border: 2px solid #3b82f6; color: #1e293b; text-align: center; font-weight: bold;
     }
-    .chat-bubble { 
-        background: #f8fafc; padding: 20px; border-radius: 12px; 
-        border-right: 8px solid #3b82f6; color: #1e293b; margin-bottom: 15px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2); white-space: pre-wrap;
-    }
-    .stTextArea textarea { color: #000000 !important; background-color: #ffffff !important; }
-    label, p, h1, h2, span { color: #f8fafc !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. Session Management ---
+# --- 3. ניהול המצב (State) ---
 if 'step' not in st.session_state: st.session_state.step = 'setup'
 if 'history' not in st.session_state: st.session_state.history = []
 if 'cabinet' not in st.session_state:
     st.session_state.cabinet = [
-        {"name": "סוקרטס", "cat": "פילוסופיה"}, {"name": "מרקוס אורליוס", "cat": "פילוסופיה"},
-        {"name": "ויקטור פראנקל", "cat": "פסיכולוגיה"}, {"name": "יונג", "cat": "פסיכולוגיה"},
-        {"name": "מקלוהן", "cat": "תרבות"}, {"name": "הררי", "cat": "תרבות"},
-        {"name": "סטיב ג'ובס", "cat": "חדשנות"}, {"name": "דה וינצ'י", "cat": "הנדסה"}
+        {"name": "סוקרטס"}, {"name": "מרקוס אורליוס"}, {"name": "ויקטור פראנקל"}, 
+        {"name": "יונג"}, {"name": "מקלוהן"}, {"name": "הררי"}, 
+        {"name": "סטיב ג'ובס"}, {"name": "דה וינצ'י"}
     ]
 
-# --- Step 0: Input ---
+# --- שלב 0: הקמה ---
 if st.session_state.step == 'setup':
     st.title("🏛️ קבינט המוחות")
     cols = st.columns(4)
     for i, m in enumerate(st.session_state.cabinet):
-        with cols[i % 4]: st.markdown(f"<div class='expert-box'>{m['name']}</div>", unsafe_allow_html=True)
+        with cols[i % 4]: st.markdown(f"<div class='expert-card'>{m['name']}</div>", unsafe_allow_html=True)
     
     st.write("---")
-    idea = st.text_area("🖋️ תאר את המצב שבפנינו:", height=150)
+    idea = st.text_area("🖋️ תאר את המקרה לדיון:", height=150)
     
-    if st.button("🔍 הערכת קבינט"):
-        model_name = get_working_model()
-        if model_name and idea:
-            st.session_state.working_model = model_name
+    if st.button("🔍 התחל אבחון קבינט"):
+        model = get_model()
+        if model and idea:
             st.session_state.user_idea = idea
-            with st.spinner("הקבינט מגבש שאלות..."):
-                model = genai.GenerativeModel(model_name)
-                prompt = f"Subject: {idea}. Generate 3 diagnostic questions in Hebrew. Return ONLY JSON array: [{{'q': 'text', 'options': ['a', 'b', 'c']}}]"
+            with st.spinner("מגבש שאלות..."):
+                prompt = f"Topic: {idea[:500]}. Task: 3 diag questions in Hebrew. Return ONLY JSON array: [{{'q':'text','options':['a','b','c']}}]"
                 try:
                     res = model.generate_content(prompt)
-                    clean_text = re.search(r'\[.*\]', res.text, re.DOTALL).group()
-                    st.session_state.questions = json.loads(clean_text)
+                    json_str = re.search(r'\[.*\]', res.text, re.DOTALL).group()
+                    st.session_state.questions = json.loads(json_str)
                     st.session_state.step = 'diagnostic'
                     st.rerun()
-                except: st.error("נסה שוב.")
+                except: st.error("חלה שגיאה בעיבוד. נסה שוב.")
 
-# --- Step 1: Diagnosis ---
+# --- שלב 1: אבחון ---
 elif st.session_state.step == 'diagnostic':
     st.title("📝 אבחון")
     ans_list = []
     for i, item in enumerate(st.session_state.questions):
-        st.write(f"**{item['q']}**")
-        ans = st.radio("בחר:", item['options'], key=f"ans_{i}", label_visibility="collapsed")
+        ans = st.radio(item['q'], item['options'], key=f"q_{i}")
         ans_list.append(f"Q: {item['q']} | A: {ans}")
     
-    if st.button("🚀 המשך"):
-        st.session_state.history.append({"role": "user", "parts": [f"Case: {st.session_state.user_idea}. Answers: {ans_list}"]})
+    if st.button("🚀 שלח לקבינט"):
+        st.session_state.history.append({"role": "user", "content": f"מקרה: {st.session_state.user_idea}. אבחון: {ans_list}"})
         st.session_state.step = 'dialogue'
         st.rerun()
 
-# --- Step 2: Dialogue ---
+# --- שלב 2: צ'אט ---
 elif st.session_state.step == 'dialogue':
-    st.title("💬 דבר הקבינט")
+    st.title("💬 דיון")
     
     for msg in st.session_state.history:
-        content = msg['parts'][0]
-        if msg['role'] == 'model':
-            # שימוש במחרוזת משולשת למניעת SyntaxError על ירידות שורה
-            st.markdown(f'''<div class="chat-bubble">{content}</div>''', unsafe_allow_html=True)
-        elif 'Case:' not in content:
-            st.info(f"**אתה:** {content}")
+        if "מקרה:" in msg['content'] and len(st.session_state.history) > 1: continue
+        with st.chat_message("assistant" if msg['role'] == "model" else "user"):
+            st.write(msg['content'])
 
-    if st.session_state.history[-1]['role'] == 'user':
-        with st.spinner("חבר קבינט חושב..."):
-            expert = random.choice(st.session_state.cabinet)['name']
-            instr = f"You are {expert}. Respond in Hebrew. Open with: '{expert} היה נוהג לומר...' Be brief and sharp."
-            model = genai.GenerativeModel(st.session_state.working_model)
-            res = model.generate_content([{"role": "user", "parts": [instr]}] + st.session_state.history)
-            st.session_state.history.append({"role": "model", "parts": [res.text]})
-            st.rerun()
+    # יצירת תגובה רק אם המשתמש שלח משהו
+    if not st.session_state.history or st.session_state.history[-1]['role'] == 'user':
+        with st.chat_message("assistant"):
+            with st.spinner("חבר קבינט מגיב..."):
+                expert = random.choice(st.session_state.cabinet)['name']
+                instr = f"You are {expert}. Respond in Hebrew. Open with: '{expert} היה נוהג לומר...'. Be brief."
+                model = get_model()
+                # הכנת היסטוריה ל-Gemini
+                hist = [{"role": m['role'], "parts": [m['content']]} for m in st.session_state.history]
+                res = model.generate_content([{"role": "user", "parts": [instr]}] + hist)
+                st.write(res.text)
+                st.session_state.history.append({"role": "model", "content": res.text})
 
-    user_reply = st.chat_input("השב לקבינט...")
-    if user_reply:
-        st.session_state.history.append({"role": "user", "parts": [user_reply]})
-        st.rerun()
-
-    if st.button("🔄 התחל מחדש"):
-        st.session_state.step = 'setup'
-        st.session_state.history = []
+    if reply := st.chat_input("השב..."):
+        st.session_state.history.append({"role": "user", "content": reply})
         st.rerun()
