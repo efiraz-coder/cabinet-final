@@ -4,32 +4,48 @@ import json
 import re
 import random
 
-# --- 1. הגדרות API ---
+# --- 1. הגדרות API ומהירות ---
 def get_working_model():
     if "GEMINI_KEY" not in st.secrets:
-        st.error("Missing GEMINI_KEY")
+        st.error("Missing GEMINI_KEY in secrets")
         return None
     genai.configure(api_key=st.secrets["GEMINI_KEY"])
-    return 'models/gemini-1.5-flash' # שימוש ב-Flash למהירות מקסימלית
+    return 'models/gemini-1.5-flash'
 
-# --- 2. עיצוב (כהה עם תיבות בהירות וקריאות) ---
+# --- 2. עיצוב UI (שיפור ניגודיות וקריאות) ---
 st.set_page_config(page_title="קבינט המוחות", layout="wide")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&display=swap');
-    html, body, [class*="st-"] { font-family: 'Assistant', sans-serif; direction: rtl; text-align: right; background-color: #0f172a; }
+    html, body, [class*="st-"] { 
+        font-family: 'Assistant', sans-serif; 
+        direction: rtl; 
+        text-align: right; 
+        background-color: #0f172a; 
+    }
     .expert-box { 
-        background-color: #ffffff; padding: 12px; border: 2px solid #3b82f6; 
-        border-radius: 10px; text-align: center; color: #1e293b !important; 
-        font-weight: bold; margin-bottom: 10px;
+        background-color: #ffffff; 
+        padding: 10px; 
+        border: 2px solid #3b82f6; 
+        border-radius: 8px; 
+        text-align: center; 
+        color: #1e293b !important; 
+        font-weight: bold;
     }
     .chat-bubble { 
-        background: #f8fafc; padding: 20px; border-radius: 15px; 
-        border-right: 8px solid #3b82f6; color: #1e293b; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px;
+        background: #f8fafc; 
+        padding: 20px; 
+        border-radius: 12px; 
+        border-right: 8px solid #3b82f6; 
+        color: #1e293b; 
+        margin-bottom: 15px;
     }
-    label, p, span, h1 { color: #f8fafc !important; }
-    .stTextArea textarea { color: #1e293b !important; background-color: #ffffff !important; }
+    /* תיקון צבע טקסט בתיבת הזנה */
+    .stTextArea textarea {
+        color: #000000 !important;
+        background-color: #ffffff !important;
+    }
+    label, p, h1, h2 { color: #f8fafc !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -44,59 +60,70 @@ if 'cabinet' not in st.session_state:
         {"name": "סטיב ג'ובס", "cat": "חדשנות"}, {"name": "דה וינצ'י", "cat": "הנדסה"}
     ]
 
-# --- שלב 0: הגדרה ---
+# --- שלב 0: הזנת מצב ---
 if st.session_state.step == 'setup':
     st.title("🏛️ קבינט המוחות")
     cols = st.columns(4)
     for i, m in enumerate(st.session_state.cabinet):
-        with cols[i % 4]: st.markdown(f"<div class='expert-box'>{m['name']}<br><small style='color: #475569;'>{m['cat']}</small></div>", unsafe_allow_html=True)
+        with cols[i % 4]: 
+            st.markdown(f"<div class='expert-box'>{m['name']}</div>", unsafe_allow_html=True)
     
     st.write("---")
-    idea = st.text_area("🖋️ תאר את המצב:", height=120)
+    idea = st.text_area("🖋️ תאר את המצב שבפנינו:", height=150)
     
-    if st.button("🔍 שלח לבחינת הקבינט"):
+    if st.button("🔍 הערכת קבינט"):
         model_name = get_working_model()
         if model_name and idea:
             st.session_state.working_model = model_name
             st.session_state.user_idea = idea
-            with st.spinner("הקבינט מגבש שאלות..."):
+            with st.spinner("הקבינט מנתח..."):
                 model = genai.GenerativeModel(model_name)
-                # פורמט קצר ומהיר יותר
-                prompt = f"Topic: {idea}. Generate 3 diag questions in Hebrew. Return ONLY JSON list: [{{'q':'text', 'options':['a','b','c']}}]"
+                prompt = (
+                    f"Subject: {idea}. Role: Expert Cabinet. "
+                    "Task: Generate 3 diagnostic questions in Hebrew. "
+                    "Format: Return ONLY a JSON array of objects with 'q' (string) and 'options' (list of 3 strings)."
+                )
                 try:
                     res = model.generate_content(prompt)
-                    json_text = re.search(r'\[.*\]', res.text, re.DOTALL).group().replace("'", '"')
-                    st.session_state.questions = json.loads(json_text)
+                    # ניקוי תגיות Markdown של JSON אם קיימות
+                    clean_text = res.text.replace("```json", "").replace("```", "").strip()
+                    st.session_state.questions = json.loads(clean_text)
                     st.session_state.step = 'diagnostic'
                     st.rerun()
-                except: st.error("חלה שגיאה מהירה. נסה שוב.")
+                except Exception as e:
+                    st.error(f"שגיאת תקשורת. נסה ללחוץ שוב.")
 
-# --- שלב 1: אבחון ---
+# --- שלב 1: אבחון מובנה ---
 elif st.session_state.step == 'diagnostic':
     st.title("📝 אבחון הקבינט")
     ans_list = []
     for i, item in enumerate(st.session_state.questions):
-        ans = st.radio(item['q'], item['options'], key=f"ans_{i}")
+        st.write(f"**{item['q']}**")
+        ans = st.radio("בחר:", item['options'], key=f"ans_{i}", label_visibility="collapsed")
         ans_list.append(f"Q: {item['q']} | A: {ans}")
     
-    if st.button("🚀 המשך לדיאלוג"):
-        st.session_state.history.append({"role": "user", "parts": [f"Case: {st.session_state.user_idea}. Answers: {ans_list}"]})
+    if st.button("🚀 המשך לתובנה"):
+        st.session_state.history.append({"role": "user", "parts": [f"המקרה: {st.session_state.user_idea}. תשובות: {ans_list}"]})
         st.session_state.step = 'dialogue'
         st.rerun()
 
-# --- שלב 2: דיאלוג ---
+# --- שלב 2: דיאלוג ממוקד דמות ---
 elif st.session_state.step == 'dialogue':
     st.title("💬 דבר הקבינט")
     for msg in st.session_state.history:
         if msg['role'] == 'model':
             st.markdown(f"<div class='chat-bubble'>{msg['parts'][0]}</div>", unsafe_allow_html=True)
-        elif 'Case:' not in msg['parts'][0]:
-            st.write(f"🔵 **אתה:** {msg['parts'][0]}")
+        elif 'המקרה:' not in msg['parts'][0]:
+            st.info(f"**אתה:** {msg['parts'][0]}")
 
     if st.session_state.history[-1]['role'] == 'user':
-        with st.spinner("מעבד תובנה..."):
+        with st.spinner("חבר קבינט מגבש תגובה..."):
             expert = random.choice(st.session_state.cabinet)['name']
-            instr = f"You are {expert}. Open with '{expert} היה נוהג לומר...'. Be brief, sharp, Hebrew."
+            instr = (
+                f"You are {expert}. Respond in Hebrew. "
+                f"Start with: '{expert} היה נוהג לומר...' "
+                "Be sharp, concise, and focused on your specific worldview."
+            )
             model = genai.GenerativeModel(st.session_state.working_model)
             res = model.generate_content([{"role": "user", "parts": [instr]}] + st.session_state.history)
             st.session_state.history.append({"role": "model", "parts": [res.text]})
@@ -104,5 +131,4 @@ elif st.session_state.step == 'dialogue':
 
     user_reply = st.chat_input("השב לקבינט...")
     if user_reply:
-        st.session_state.history.append({"role": "user", "parts": [user_reply]})
-        st.rerun()
+        st.session_state.history.append({"role": "user", "parts":
