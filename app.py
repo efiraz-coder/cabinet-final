@@ -23,8 +23,8 @@ def call_cabinet_api(prompt):
     
     api_key = st.secrets["GEMINI_KEY"]
     
-    # התיקון הקריטי: שימוש בגרסה v1 במקום v1beta
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
+    # השם המדויק והמעודכן ביותר של המודל לפי גוגל
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={api_key}"
     
     headers = {'Content-Type': 'application/json'}
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
@@ -34,6 +34,7 @@ def call_cabinet_api(prompt):
         if response.status_code == 200:
             return response.json()['candidates'][0]['content']['parts'][0]['text']
         else:
+            # אם יש שגיאה, נראה בדיוק מה היא
             st.error(f"שגיאת שרת ({response.status_code}): {response.text}")
             return None
     except Exception as e:
@@ -76,6 +77,7 @@ if st.button("🔍 שלח לאבחון המומחים"):
             
             raw = call_cabinet_api(prompt)
             if raw:
+                # ניקוי פורמט JSON מהתשובה
                 clean_raw = raw.replace('```json', '').replace('```', '').strip()
                 match = re.search(r'\[.*\]', clean_raw, re.DOTALL)
                 if match:
