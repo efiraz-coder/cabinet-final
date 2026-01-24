@@ -23,8 +23,8 @@ def call_cabinet_api(prompt):
     
     api_key = st.secrets["GEMINI_KEY"]
     
-    # עדכון הכתובת לגרסה 1.5 פלאש - הכי יציבה כרגע
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    # התיקון הקריטי: שימוש בגרסה v1 במקום v1beta
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
     
     headers = {'Content-Type': 'application/json'}
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
@@ -34,7 +34,6 @@ def call_cabinet_api(prompt):
         if response.status_code == 200:
             return response.json()['candidates'][0]['content']['parts'][0]['text']
         else:
-            # כאן המערכת תגיד לנו בדיוק מה הבעיה אם ה-404 נמשך
             st.error(f"שגיאת שרת ({response.status_code}): {response.text}")
             return None
     except Exception as e:
@@ -67,7 +66,6 @@ if st.button("🔍 שלח לאבחון המומחים"):
         with st.spinner("חברי הקבינט דנים בבעיה..."):
             experts_list = ", ".join([m['שם'] for m in st.session_state.cabinet])
             
-            # שימוש בסוגריים כפולים למניעת ValueError
             prompt = f"""
             Task: Act as a board of experts for: "{idea}".
             Experts: {experts_list}.
