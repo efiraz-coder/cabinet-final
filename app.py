@@ -4,27 +4,26 @@ import json
 import re
 import random
 
-# --- 1. הגדרות API מיוצבות ---
+# ==========================================
+# קונפיגורציה קבועה (ה"זיכרון" של האפליקציה)
+# ==========================================
+CONFIG = {
+    "MODEL_NAME": "gemini-1.5-flash-latest", # השם שעוקף את שגיאת ה-404
+    "FALLBACK_MODEL": "gemini-pro",
+    "JSON_PATTERN": r'\[\s*{.*}\s*\]' # תבנית חילוץ JSON חסינה
+}
+
 def setup_model():
     if "GEMINI_KEY" not in st.secrets:
         st.error("Missing GEMINI_KEY in secrets")
         return None
     genai.configure(api_key=st.secrets["GEMINI_KEY"])
-    
-    # ניסיון להשתמש בגרסה היציבה ביותר
-    # אם gemini-1.5-flash לא נמצא, המערכת תנסה לעבור ל-gemini-pro
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        # בדיקה קצרה אם המודל מגיב (אופציונלי, כאן נגדיר רק את השם)
-        return model
+        return genai.GenerativeModel(CONFIG["MODEL_NAME"])
     except:
-        try:
-            return genai.GenerativeModel('gemini-pro')
-        except Exception as e:
-            st.error(f"לא ניתן למצוא מודל נתמך: {e}")
-            return None
+        return genai.GenerativeModel(CONFIG["FALLBACK_MODEL"])
 
-# --- 2. עיצוב ממשק ---
+# --- עיצוב ממשק ---
 st.set_page_config(page_title="קבינט המוחות", layout="wide")
 st.markdown("""
     <style>
@@ -32,56 +31,60 @@ st.markdown("""
     html, body, [class*="st-"] { font-family: 'Assistant', sans-serif; direction: rtl; text-align: right; background-color: #0f172a; }
     .stTextArea textarea { color: #000000 !important; background-color: #ffffff !important; border: 2px solid #3b82f6 !important; }
     label, p, h1, h2 { color: #f8fafc !important; }
+    .expert-card { background-color: #ffffff; padding: 10px; border-radius: 8px; border: 2px solid #3b82f6; color: #1e293b !important; text-align: center; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. פונקציית עזר לחילוץ JSON ---
-def extract_json(text):
+# --- פונקציית חילוץ JSON (מבוסס למידת עבר) ---
+def robust_json_parser(text):
     try:
-        # מחפש את המערך בתוך הטקסט
-        match = re.search(r'\[.*\]', text, re.DOTALL)
+        match = re.search(CONFIG["JSON_PATTERN"], text, re.DOTALL)
         if match:
             return json.loads(match.group())
     except:
         pass
     return None
 
-# --- 4. ניהול המצב ---
+# --- ניהול המצב ---
 if 'step' not in st.session_state: st.session_state.step = 'setup'
 if 'history' not in st.session_state: st.session_state.history = []
 
-# --- שלב 0: מסך פתיחה ---
+# --- שלב 0: הקמה ---
 if st.session_state.step == 'setup':
     st.title("🏛️ קבינט המוחות")
-    idea = st.text_area("🖋️ תאר את הדילמה שלך:", height=150)
+    cols = st.columns(4)
+    cabinet = ["סוקרטס", "מרקוס אורליוס", "ויקטור פראנקל", "יונג", "מקלוהן", "הררי", "סטיב ג'ובס", "דה וינצ'י"]
+    for i, name in enumerate(cabinet):
+        with cols[i % 4]: st.markdown(f"<div class='expert-card'>{name}</div>", unsafe_allow_html=True)
+    
+    st.write("---")
+    idea = st.text_area("🖋️ תאר את המקרה לדיון:", height=150)
     
     if st.button("🔍 התחל אבחון"):
         model = setup_model()
         if model and idea:
             st.session_state.user_idea = idea
             with st.spinner("הקבינט מגבש שאלות..."):
-                prompt = (
-                    f"Topic: {idea}. Task: 3 diagnostic questions in Hebrew. "
-                    "Return ONLY a plain JSON array: [{'q':'question', 'options':['a','b','c']}]"
-                )
+                prompt = (f"Topic: {idea}. Task: Generate 3 diagnostic questions in Hebrew. "
+                          "Return ONLY a valid JSON array: [{'q':'text','options':['a','b','c']}]")
                 try:
-                    response = model.generate_content(prompt)
-                    questions = extract_json(response.text)
+                    res = model.generate_content(prompt)
+                    questions = robust_json_parser(res.text)
                     if questions:
                         st.session_state.questions = questions
                         st.session_state.step = 'diagnostic'
                         st.rerun()
                     else:
-                        st.warning("הקבינט לא הצליח לייצר שאלות בפורמט הנכון. נסה שוב.")
+                        st.error("המודל החזיר תשובה בפורמט שבור. נסה שוב.")
                 except Exception as e:
-                    st.error(f"שגיאת תקשורת עם המודל: {e}")
+                    st.error(f"שגיאת תקשורת: {str(e)}")
 
 # --- שלב 1: אבחון ---
 elif st.session_state.step == 'diagnostic':
     st.title("📝 אבחון")
     ans_list = []
     for i, item in enumerate(st.session_state.questions):
-        ans = st.radio(f"**{item['q']}**", item['options'], key=f"q_{i}")
+        ans = st.radio(item['q'], item['options'], key=f"q_{i}")
         ans_list.append(f"Q: {item['q']} | A: {ans}")
     
     if st.button("🚀 המשך לדיון"):
@@ -91,8 +94,7 @@ elif st.session_state.step == 'diagnostic':
 
 # --- שלב 2: דיאלוג ---
 elif st.session_state.step == 'dialogue':
-    st.title("💬 דיון בקבינט")
-    
+    st.title("💬 דבר הקבינט")
     for msg in st.session_state.history:
         if "מקרה:" in msg['content'] and len(st.session_state.history) > 1: continue
         with st.chat_message("assistant" if msg['role'] == "model" else "user"):
@@ -100,20 +102,15 @@ elif st.session_state.step == 'dialogue':
 
     if not st.session_state.history or st.session_state.history[-1]['role'] == 'user':
         with st.chat_message("assistant"):
-            with st.spinner("חבר קבינט משיב..."):
+            with st.spinner("מפיק תובנה..."):
                 model = setup_model()
-                expert = random.choice(["סוקרטס", "מרקוס אורליוס", "ויקטור פראנקל", "יונג"])
-                instr = f"You are {expert}. Respond in Hebrew. Open with: '{expert} היה נוהג לומר...'. Be deep and brief."
-                
-                # בניית היסטוריה תקינה
-                gemini_hist = [{"role": m['role'], "parts": [m['content']]} for m in st.session_state.history]
-                try:
-                    res = model.generate_content([{"role": "user", "parts": [instr]}] + gemini_hist)
-                    st.write(res.text)
-                    st.session_state.history.append({"role": "model", "content": res.text})
-                except Exception as e:
-                    st.error(f"שגיאה בקבלת תגובה: {e}")
+                expert = random.choice(["סוקרטס", "מרקוס אורליוס", "ויקטור פראנקל", "סטיב ג'ובס"])
+                instr = f"You are {expert}. Respond in Hebrew. Open with: '{expert} היה נוהג לומר...'. Be brief."
+                hist = [{"role": m['role'], "parts": [m['content']]} for m in st.session_state.history]
+                res = model.generate_content([{"role": "user", "parts": [instr]}] + hist)
+                st.write(res.text)
+                st.session_state.history.append({"role": "model", "content": res.text})
 
-    if reply := st.chat_input("השב..."):
+    if reply := st.chat_input("השב לקבינט..."):
         st.session_state.history.append({"role": "user", "content": reply})
         st.rerun()
