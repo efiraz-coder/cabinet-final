@@ -12,7 +12,7 @@ def get_working_model():
     genai.configure(api_key=st.secrets["GEMINI_KEY"])
     return 'models/gemini-1.5-flash'
 
-# --- 2. עיצוב UI חסין (טקסט שחור בתיבות כתיבה) ---
+# --- 2. עיצוב UI (טקסט שחור בתיבות כתיבה, רקע כהה) ---
 st.set_page_config(page_title="קבינט המוחות", layout="wide")
 st.markdown("""
     <style>
@@ -41,7 +41,7 @@ st.markdown("""
         margin-bottom: 15px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
-    /* תיקון קריטי לניגודיות טקסט */
+    /* תיקון ניגודיות טקסט בתיבות הזנה */
     .stTextArea textarea {
         color: #000000 !important;
         background-color: #ffffff !important;
@@ -61,7 +61,7 @@ if 'cabinet' not in st.session_state:
         {"name": "סטיב ג'ובס", "cat": "חדשנות"}, {"name": "דה וינצ'י", "cat": "הנדסה"}
     ]
 
-# --- שלב 0: פתיחה והזנת מקרה ---
+# --- שלב 0: הקמה ---
 if st.session_state.step == 'setup':
     st.title("🏛️ קבינט המוחות")
     cols = st.columns(4)
@@ -90,15 +90,15 @@ if st.session_state.step == 'setup':
                     st.session_state.step = 'diagnostic'
                     st.rerun()
                 except:
-                    st.error("הקבינט לא הצליח לעבד את השאלות. נסה שוב.")
+                    st.error("הקבינט לא הצליח לעבד. נסה שוב.")
 
-# --- שלב 1: אבחון הקבינט ---
+# --- שלב 1: אבחון ---
 elif st.session_state.step == 'diagnostic':
     st.title("📝 אבחון הקבינט")
     ans_list = []
     for i, item in enumerate(st.session_state.questions):
         st.write(f"**{item['q']}**")
-        ans = st.radio("בחר תשובה:", item['options'], key=f"ans_{i}", label_visibility="collapsed")
+        ans = st.radio("בחר:", item['options'], key=f"ans_{i}", label_visibility="collapsed")
         ans_list.append(f"Q: {item['q']} | A: {ans}")
     
     if st.button("🚀 קבלת תובנה"):
@@ -106,6 +106,10 @@ elif st.session_state.step == 'diagnostic':
         st.session_state.step = 'dialogue'
         st.rerun()
 
-# --- שלב 2: דיאלוג ממוקד ---
+# --- שלב 2: דיאלוג ---
 elif st.session_state.step == 'dialogue':
-    st.title("💬 דבר הקבינט
+    st.title("💬 דבר הקבינט")
+    
+    for msg in st.session_state.history:
+        if msg['role'] == 'model':
+            st.markdown(f"<div class='chat-bubble'>{msg['parts'][0]}
