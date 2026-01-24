@@ -4,26 +4,30 @@ import json
 import re
 import random
 
-# ==========================================
-# קונפיגורציה קבועה (ה"זיכרון" של האפליקציה)
-# ==========================================
-CONFIG = {
-    "MODEL_NAME": "gemini-1.5-flash-latest", # השם שעוקף את שגיאת ה-404
-    "FALLBACK_MODEL": "gemini-pro",
-    "JSON_PATTERN": r'\[\s*{.*}\s*\]' # תבנית חילוץ JSON חסינה
-}
-
-def setup_model():
+# --- 1. מנגנון גילוי מודלים אוטומטי (מונע 404) ---
+def get_available_model():
     if "GEMINI_KEY" not in st.secrets:
         st.error("Missing GEMINI_KEY in secrets")
         return None
+    
     genai.configure(api_key=st.secrets["GEMINI_KEY"])
+    
     try:
-        return genai.GenerativeModel(CONFIG["MODEL_NAME"])
-    except:
-        return genai.GenerativeModel(CONFIG["FALLBACK_MODEL"])
+        # בדיקה אקטיבית איזה מודלים זמינים למפתח שלך
+        models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        # עדיפות ל-flash בגלל המהירות, אם לא - אז פרו
+        for m_name in models:
+            if '1.5-flash' in m_name: return m_name
+        for m_name in models:
+            if 'pro' in m_name: return m_name
+            
+        return models[0] if models else None
+    except Exception as e:
+        st.error(f"שגיאה בגישה ל-API: {e}")
+        return None
 
-# --- עיצוב ממשק ---
+# --- 2. עיצוב ממשק ---
 st.set_page_config(page_title="קבינט המוחות", layout="wide")
 st.markdown("""
     <style>
@@ -35,37 +39,44 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- פונקציית חילוץ JSON (מבוסס למידת עבר) ---
+# --- 3. חילוץ JSON חסין ---
 def robust_json_parser(text):
     try:
-        match = re.search(CONFIG["JSON_PATTERN"], text, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-    except:
-        pass
+        match = re.search(r'\[\s*{.*}\s*\]', text, re.DOTALL)
+        if match: return json.loads(match.group())
+    except: pass
     return None
 
-# --- ניהול המצב ---
+# --- 4. ניהול המצב ---
 if 'step' not in st.session_state: st.session_state.step = 'setup'
 if 'history' not in st.session_state: st.session_state.history = []
+if 'active_model' not in st.session_state: st.session_state.active_model = None
 
 # --- שלב 0: הקמה ---
 if st.session_state.step == 'setup':
     st.title("🏛️ קבינט המוחות")
+    
+    # גילוי המודל כבר בהתחלה
+    if not st.session_state.active_model:
+        st.session_state.active_model = get_available_model()
+    
+    if st.session_state.active_model:
+        st.caption(f"מחובר למודל: {st.session_state.active_model}")
+    
     cols = st.columns(4)
     cabinet = ["סוקרטס", "מרקוס אורליוס", "ויקטור פראנקל", "יונג", "מקלוהן", "הררי", "סטיב ג'ובס", "דה וינצ'י"]
     for i, name in enumerate(cabinet):
-        with cols[i % 4]: st.markdown(f"<div class='expert-card'>{name}</div>", unsafe_allow_html=True)
+        with cols[i % 4]: st.markdown(f<div class='expert-card'>{name}</div>", unsafe_allow_html=True)
     
     st.write("---")
     idea = st.text_area("🖋️ תאר את המקרה לדיון:", height=150)
     
     if st.button("🔍 התחל אבחון"):
-        model = setup_model()
-        if model and idea:
+        if st.session_state.active_model and idea:
             st.session_state.user_idea = idea
-            with st.spinner("הקבינט מגבש שאלות..."):
-                prompt = (f"Topic: {idea}. Task: Generate 3 diagnostic questions in Hebrew. "
+            with st.spinner("מגבש שאלות..."):
+                model = genai.GenerativeModel(st.session_state.active_model)
+                prompt = (f"Topic: {idea}. Generate 3 diagnostic questions in Hebrew. "
                           "Return ONLY a valid JSON array: [{'q':'text','options':['a','b','c']}]")
                 try:
                     res = model.generate_content(prompt)
@@ -75,9 +86,9 @@ if st.session_state.step == 'setup':
                         st.session_state.step = 'diagnostic'
                         st.rerun()
                     else:
-                        st.error("המודל החזיר תשובה בפורמט שבור. נסה שוב.")
+                        st.error("הפורמט שהתקבל אינו תקין. נסה שוב.")
                 except Exception as e:
-                    st.error(f"שגיאת תקשורת: {str(e)}")
+                    st.error(f"שגיאת מודל: {e}")
 
 # --- שלב 1: אבחון ---
 elif st.session_state.step == 'diagnostic':
@@ -102,8 +113,8 @@ elif st.session_state.step == 'dialogue':
 
     if not st.session_state.history or st.session_state.history[-1]['role'] == 'user':
         with st.chat_message("assistant"):
-            with st.spinner("מפיק תובנה..."):
-                model = setup_model()
+            with st.spinner("חבר קבינט חושב..."):
+                model = genai.GenerativeModel(st.session_state.active_model)
                 expert = random.choice(["סוקרטס", "מרקוס אורליוס", "ויקטור פראנקל", "סטיב ג'ובס"])
                 instr = f"You are {expert}. Respond in Hebrew. Open with: '{expert} היה נוהג לומר...'. Be brief."
                 hist = [{"role": m['role'], "parts": [m['content']]} for m in st.session_state.history]
